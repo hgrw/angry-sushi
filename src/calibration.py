@@ -9,7 +9,6 @@ class Calibration(object):
         self.frame = image      # Calibration target images
         self.render = None      # Calibration target corners rendered on image
         self.points = None      # Sub-pixel location of points on calibration target
-        self.boardDims = None   # Number of squares used in x-y for calibration routines
 
         # Stop criteria for calibration
         self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -20,45 +19,32 @@ class Calibration(object):
                                                    flags=cv2.CALIB_CB_ADAPTIVE_THRESH +
                                                    cv2.CALIB_CB_ASYMMETRIC_GRID)
         if found:
-            self.points = cv2.cornerSubPix(self.frame,
-                                           corners, (11, 11), (-1, -1), self.criteria)
-            self.boardDims = dimensions
+            cv2.cornerSubPix(self.frame, corners, (11, 11), (-1, -1), self.criteria)
+            self.points = corners
+            print("SUITABLE TARGET ACQUIRED")
         return found
 
-    def update_points(self):
-        newPoints = []
-        for i in range(0, len(self.points)):
-            if 20 < i < 42:
-                newPoints.append(self.points[i])
-        self.points = np.asarray(newPoints)
-        self.boardDims = (7, 3)
-
-    def render_points(self, img):
-        tempImg = self.frame.copy()
+    def render_points(self, img, dimms):
         outImg = img.copy()
-        cv2.cornerSubPix(tempImg, self.points, (11, 11), (-1, -1), self.criteria)
-        cv2.drawChessboardCorners(outImg, self.boardDims, self.points, True)
+        cv2.drawChessboardCorners(outImg, dimms, self.points, True)
         self.render = outImg
 
 
-def generate_calibration(imageSet, dimms, updatePoints=False):
-    for image in imageSet.images:   # Fetch an image from the image set
-        data = Calibration(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY))
+def get_points(image, dimms):
 
-        # Ensure that sufficient corners exist for calibration
-        if data.try_approximate_corners(dimms):
-            if updatePoints:                        # Update points for TASK 1.4
-                data.update_points()
-            data.render_points(image)               # Render points
-            imageSet.calibrationSet.append(data)    # Add points to array in ImageSet
-    print("Generated Calibration Data on {} Images".
-          format(len(imageSet.calibrationSet)))
+    # Instantiate calibration object
+    data = Calibration(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY))
+
+    # Ensure that sufficient corners exist for calibration
+    if data.try_approximate_corners(dimms):
+        data.render_points(image, dimms)               # Render points
+        return data
 
 
-def calibrate_camera(imageSet):
-    calibSet = imageSet.calibrationSet  # Retrive points for all images in ImageSet
-    rows = calibSet[0].boardDims[0]
-    cols = calibSet[0].boardDims[1]
+def calibrate_camera(camera, dimms):
+    calibSet = camera.calibrationObjects  # Retrive points for all images in ImageSet
+    rows = dimms[0]
+    cols = dimms[1]
     shape = calibSet[0].frame.shape
 
     objp = np.zeros((cols * rows, 3), np.float32)
@@ -71,27 +57,27 @@ def calibrate_camera(imageSet):
     objPoints = [objp for _ in range(0, len(calibSet))]
 
     # Put return values of cv2.calibrateCamera into a dictionary for later use
-    ret, imageSet.calibrationParams['mtx'], \
-    imageSet.calibrationParams['dist'], \
-    imageSet.calibrationParams['rvecs'], \
-    imageSet.calibrationParams['tvecs'] \
+    ret, camera.calibrationParams['mtx'], \
+    camera.calibrationParams['dist'], \
+    camera.calibrationParams['rvecs'], \
+    camera.calibrationParams['tvecs'] \
         = cv2.calibrateCamera(objPoints, imgPoints, shape[::-1], None, None)
 
     # Store 2d and 3d points on calibration target
-    imageSet.calibrationParams['objPoints'] = objPoints
-    imageSet.calibrationParams['imgPoints'] = imgPoints
-    imageSet.calibrationParams['imageSize'] = shape
+    camera.calibrationParams['objPoints'] = objPoints
+    camera.calibrationParams['imgPoints'] = imgPoints
+    camera.calibrationParams['imageSize'] = shape
     print('Calibrated Camera')
 
 
-def print_calibration_matrix(imageSet, apertureWidth, apertureHeight):
+def print_calibration_matrix(camera, apertureWidth, apertureHeight):
 
     fovx, \
     fovy, \
     focalLength, \
     principalPoint, \
-    aspectRatio = cv2.calibrationMatrixValues(imageSet.calibrationParams['mtx'],
-                                              imageSet.calibrationParams['imageSize'],
+    aspectRatio = cv2.calibrationMatrixValues(camera.calibrationParams['mtx'],
+                                              camera.calibrationParams['imageSize'],
                                               apertureWidth,
                                               apertureHeight)
 
@@ -101,41 +87,37 @@ def print_calibration_matrix(imageSet, apertureWidth, apertureHeight):
     print('Principal Point:\t', principalPoint)
     print('Aspect Ratio:\t\t', aspectRatio)
     print('Camera Matrix:')
-    for c1, c2, c3 in imageSet.calibrationParams['mtx']:
+    for c1, c2, c3 in camera.calibrationParams['mtx']:
         print("\t\t\t\t\t%04.2f \t|\t %04.2f \t|\t %04.2f" % (c1, c2, c3))
     print('')
 
 
-def remove_distortion(imageSet, crop=True, showError=False):
-    mtx = imageSet.calibrationParams['mtx']
-    dist = imageSet.calibrationParams['dist']
+def remove_distortion(cameraParameters, image, crop=True, showError=False):
+    mtx = np.asarray(cameraParameters['mtx'])
+    dist = np.asarray(cameraParameters['dist'])
 
-    for image in imageSet.images:
+    # Generate undistorted camera
+    h, w = image.shape[:2]
+    newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,
+                                                      dist,
+                                                      (w, h),
+                                                      1,
+                                                      (w, h))
+    # Undistort image
+    mapx, mapy = cv2.initUndistortRectifyMap(mtx, dist, None,
+                                             newcameramtx, (w, h), 5)
+    dst = cv2.remap(image.copy(), mapx, mapy, cv2.INTER_LINEAR)
 
-        # Generate undistorted camera
-        h, w = image.shape[:2]
-        newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,
-                                                          dist,
-                                                          (w, h),
-                                                          1,
-                                                          (w, h))
-
-        # Undistort image
-        mapx, mapy = cv2.initUndistortRectifyMap(mtx, dist, None,
-                                                 newcameramtx, (w, h), 5)
-        dst = cv2.remap(image.copy(), mapx, mapy, cv2.INTER_LINEAR)
-
-        # Crop
-        if crop:
-            x, y, w, h = roi
-            dst = dst[y:y + h, x:x + w]
-        imageSet.undistorted.append(dst)
+    # Crop
+    if crop:
+        x, y, w, h = roi
+        dst = dst[y:y + h, x:x + w]
 
     if showError:
-        imgPoints = imageSet.calibrationParams['imgPoints']
-        objPoints = imageSet.calibrationParams['objPoints']
-        rvecs = imageSet.calibrationParams['rvecs']
-        tvecs = imageSet.calibrationParams['tvecs']
+        imgPoints = cameraParameters['imgPoints']
+        objPoints = cameraParameters['objPoints']
+        rvecs = cameraParameters['rvecs']
+        tvecs = cameraParameters['tvecs']
         tot_error = 0
 
         for i in range(0, len(objPoints)):
@@ -147,7 +129,7 @@ def remove_distortion(imageSet, crop=True, showError=False):
             tot_error += error
         print("Total Distortion Error: ", tot_error / len(objPoints))
 
-    print('Removed Distortion on {} Images'.format(len(imageSet.images)))
+    return dst
 
 
 def generate_overhead(imageSet, offset, show=False):
