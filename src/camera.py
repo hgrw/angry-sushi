@@ -28,6 +28,20 @@ class Camera(object):
         self.cam = cam
         self.img = xiapi.Image()
 
+    def hardware_white_balance(self):
+        self.cam.enable_auto_wb()
+        self.cam.get_param(xiapi.XI_PRM_MANUAL_WB, 1)
+        self.cam.set_param(xiapi.XI_PRM_MANUAL_WB, 1)
+
+    def software_white_balance(self, img):
+        result = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+        avg_a = np.average(result[:, :, 1])
+        avg_b = np.average(result[:, :, 2])
+        result[:, :, 1] = result[:, :, 1] - ((avg_a - 128) * (result[:, :, 0] / 255.0) * 1.1)
+        result[:, :, 2] = result[:, :, 2] - ((avg_b - 128) * (result[:, :, 0] / 255.0) * 1.1)
+        result = cv2.cvtColor(result, cv2.COLOR_LAB2BGR)
+        return result
+
     def capture_calibration_targets(self, numTargets):
 
         captured = 0
@@ -62,4 +76,5 @@ class Camera(object):
             else:
                 print(k) # else print its value
         return img
+
 

@@ -1,12 +1,8 @@
 import cv2
 import math
 import src.math_tools as utils
+import src.plot_tools as plot
 import numpy as np
-
-
-def trim_images(input):
-    new = cv2.resize(input[188:913, 187:1093, :], (1280, 1024), interpolation=cv2.INTER_CUBIC)
-    return new
 
 
 def get_min_rects(edge, image):
@@ -65,31 +61,78 @@ def get_boxes(edge):
     else:
         return None
 
-def get_edges(image, simpleMode=False):
 
-    image = get_clahe(image)
+def get_shapes1(img, mask):
+
+    mask = cv2.morphologyEx(mask, cv2.MORPH_ERODE, np.ones((10, 10), np.uint8), iterations=3)
+    return cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8))
+
+def get_board(image):
+    imageLab = cv2.cvtColor(cv2.bilateralFilter(image, 9, 40, 40), cv2.COLOR_BGR2LAB)
+    labMask = np.asarray((imageLab[:, :, 0] < 70) * 255, dtype=np.uint8)
+    labMask = cv2.morphologyEx(labMask, cv2.MORPH_DILATE, np.ones((6, 6), np.uint8), iterations=1)
+    labMask = cv2.morphologyEx(labMask, cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8))
+    labMask = remove_components(labMask, largest=True)
+
+    return labMask
+
+
+def get_shapes(image, hues, topThresh, shapeThresh):
     image = cv2.bilateralFilter(image, 9, 40, 40)
-    image = cv2.medianBlur(image, 9)
+    hsv = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2HSV)
+    outMask = np.zeros(image[:, :, 0].shape, dtype=np.uint8)
+    topMasks = []
+    shapeMasks = []
+    for hue in hues:
+        hsvPixel = hsv[hue[1], hue[0], :]
+        shapeMask = cv2.inRange(hsv,
+                                (max(hsvPixel[0] - shapeThresh, 0), 50, 50),
+                                (min(hsvPixel[0] + shapeThresh, 255), 255, 255))
+        shapeMask = cv2.morphologyEx(shapeMask, cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8))
+        shapeMask = remove_components(shapeMask, minSize=10000)
 
-    if simpleMode:
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    else:
-        # Remove saturated pixels
-        image = color_mask(image, 50)
+        topMask = cv2.inRange(hsv,
+                              (max(hsvPixel[0] - topThresh, 0),
+                               max(hsvPixel[1] - topThresh, 0),
+                               max(hsvPixel[2] - topThresh, 0)),
+                              (min(hsvPixel[0] + topThresh, 255),
+                               min(hsvPixel[1] + topThresh, 255),
+                               min(hsvPixel[2] + topThresh, 255)))
+        topMask = cv2.morphologyEx(topMask, cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8))
+        topMask = remove_components(topMask, minSize=1000)
 
-        # Apply threshold
-        _, dst = cv2.threshold(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), 100, 255, cv2.THRESH_BINARY)
+        topMasks.append(topMask)
+        shapeMasks.append(shapeMask)
 
-        # Close and fill image
-        image = cv2.morphologyEx(dst, cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8), iterations=2)
-        im2, contours, hierarchy = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        outMask = outMask | shapeMask
+        #cv2.imshow('ok', plot.view_pair(topMask, shapeMask))
+        #cv2.waitKey(0)
+    return outMask, topMasks, shapeMasks
+    #image = cv2.medianBlur(image, 9)
 
-        for cnt in contours:
-            cv2.drawContours(image, [cnt], 0, 255, -1)
+    # Remove saturated pixels
+    #image = color_mask(image, saturationThresh, binary=True)
 
-        image = cv2.morphologyEx(image, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    # Apply threshold
+    #_, dst = cv2.threshold(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), 100, 255, cv2.THRESH_BINARY)
+
+    # Close and fill image
+    #image = cv2.morphologyEx(image, cv2.MORPH_ERODE, np.ones((6, 6), np.uint8), iterations=1)
+    #image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8))
+    #image = remove_components(image, largest=True)
+    #image = infill_components(image)
+    #cv2.imshow('im', image)
+    return outMask
+    #contours, hierarchy = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    #for cnt in contours:
+    #    cv2.drawContours(image, [cnt], 0, 255, -1)
+
+    image = cv2.morphologyEx(image, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
 
     (mu, sigma) = cv2.meanStdDev(image)
+
+    # Set experimental values from:  mu - sigma, mu + sigma, 20
     return cv2.Canny(cv2.medianBlur(image, 9), mu - sigma, mu + sigma, 20, L2gradient=True)
 
 
@@ -104,7 +147,7 @@ def infill_components(image):
     return ~image
 
 
-def color_mask(img, thresh):
+def color_mask(img, thresh, binary=False):
 
     """
     Remove pixels that have saturation greater than threshold
@@ -118,7 +161,11 @@ def color_mask(img, thresh):
     except:
         print('hsv image error')
         return img
-    mask = np.asarray((hsv[..., 1] < thresh) * 255, dtype=np.uint8)
+
+    mask = np.asarray((hsv[..., 1] > thresh) * 255, dtype=np.uint8)
+
+    if binary:
+        return mask
 
     return cv2.bitwise_and(img, img, mask=mask)
 
@@ -172,76 +219,3 @@ def get_clahe(input, tileGridSize=(8, 8), clipLimit=3.0):
 
     return bgrCorr
 
-
-class anisodiff2D(object):
-
-    def __init__(self, num_iter=5, delta_t=1/7, kappa=30, option=2):
-
-        super(anisodiff2D, self).__init__()
-
-        self.num_iter = num_iter
-        self.delta_t = delta_t
-        self.kappa = kappa
-        self.option = option
-
-        self.hN = np.array([[0,1,0],[0,-1,0],[0,0,0]])
-        self.hS = np.array([[0,0,0],[0,-1,0],[0,1,0]])
-        self.hE = np.array([[0,0,0],[0,-1,1],[0,0,0]])
-        self.hW = np.array([[0,0,0],[1,-1,0],[0,0,0]])
-        self.hNE = np.array([[0,0,1],[0,-1,0],[0,0,0]])
-        self.hSE = np.array([[0,0,0],[0,-1,0],[0,0,1]])
-        self.hSW = np.array([[0,0,0],[0,-1,0],[1,0,0]])
-        self.hNW = np.array([[1,0,0],[0,-1,0],[0,0,0]])
-
-    def fit(self, img):
-
-        diff_im = img.copy()
-
-        dx=1; dy=1; dd = math.sqrt(2)
-
-        for i in range(self.num_iter):
-
-            nablaN = cv2.filter2D(diff_im,-1,self.hN)
-            nablaS = cv2.filter2D(diff_im,-1,self.hS)
-            nablaW = cv2.filter2D(diff_im,-1,self.hW)
-            nablaE = cv2.filter2D(diff_im,-1,self.hE)
-            nablaNE = cv2.filter2D(diff_im,-1,self.hNE)
-            nablaSE = cv2.filter2D(diff_im,-1,self.hSE)
-            nablaSW = cv2.filter2D(diff_im,-1,self.hSW)
-            nablaNW = cv2.filter2D(diff_im,-1,self.hNW)
-
-            cN = 0; cS = 0; cW = 0; cE = 0; cNE = 0; cSE = 0; cSW = 0; cNW = 0
-
-            if self.option == 1:
-                cN = np.exp(-(nablaN/self.kappa)**2)
-                cS = np.exp(-(nablaS/self.kappa)**2)
-                cW = np.exp(-(nablaW/self.kappa)**2)
-                cE = np.exp(-(nablaE/self.kappa)**2)
-                cNE = np.exp(-(nablaNE/self.kappa)**2)
-                cSE = np.exp(-(nablaSE/self.kappa)**2)
-                cSW = np.exp(-(nablaSW/self.kappa)**2)
-                cNW = np.exp(-(nablaNW/self.kappa)**2)
-            elif self.option == 2:
-                cN = 1/(1+(nablaN/self.kappa)**2)
-                cS = 1/(1+(nablaS/self.kappa)**2)
-                cW = 1/(1+(nablaW/self.kappa)**2)
-                cE = 1/(1+(nablaE/self.kappa)**2)
-                cNE = 1/(1+(nablaNE/self.kappa)**2)
-                cSE = 1/(1+(nablaSE/self.kappa)**2)
-                cSW = 1/(1+(nablaSW/self.kappa)**2)
-                cNW = 1/(1+(nablaNW/self.kappa)**2)
-
-            diff_im = diff_im + self.delta_t * (
-
-                (1/dy**2)*cN*nablaN +
-                (1/dy**2)*cS*nablaS +
-                (1/dx**2)*cW*nablaW +
-                (1/dx**2)*cE*nablaE +
-
-                (1/dd**2)*cNE*nablaNE +
-                (1/dd**2)*cSE*nablaSE +
-                (1/dd**2)*cSW*nablaSW +
-                (1/dd**2)*cNW*nablaNW
-            )
-
-        return diff_im

@@ -1,4 +1,4 @@
-import src.calibration as cal
+import src.calibration as calibrate
 import src.filter_tools as filter
 import src.plot_tools as plot
 import src.math_tools as utils
@@ -9,14 +9,20 @@ import json
 import os
 
 from src.camera import Camera
+from src.workspace import Environment
+
 
 def main(exposure):
 
     # Calibration parameters
     targetDimensions = (6, 9)
+    topThresh = 7
+    shapeThresh = 15
 
     # Get image from camera
     cam = Camera(exposure, targetDimensions)
+    env = Environment()
+    cam.hardware_white_balance()
 
     # Load camera parameters
     jsonFile = os.path.join(os.path.dirname(__file__), 'cameraData.json')
@@ -24,9 +30,48 @@ def main(exposure):
     with open(jsonFile, 'r') as fp:
         cam.calibrationParams = json.load(fp)
 
-    cam.stream(rectify=True)
+    #img = cam.stream(rectify=True)
 
 
+    while True:
+        #img = calibrate.remove_distortion(cam.calibrationParams, cam.get_img(), crop=False)
+        img = cam.get_img()
+
+        # Extract elements by colour
+        env.shapeMask, shapes, tops = filter.get_shapes(img.copy(), hueLocs, topThresh, shapeThresh)
+
+        # Get the darkest largest object in the scene, usually the board. All board pixels must be connected!
+        env.boardMask = filter.get_board(img)
+
+        # worldMask is the largest component that includes shape pixels | board pixels
+        #env.worldMask = filter.remove_components(env.shapeMask | env.boardMask, largest=True)
+
+        # Remove pixels outside world
+        #env.shapeMask = env.shapeMask & env.worldMask
+
+        # Ensure that board pixels and shape pixels are mutually exclusive
+        env.boardMask = env.boardMask & ~env.shapeMask
+        env.boardMask = filter.remove_components(env.boardMask, largest=True)
+
+
+        env.get_board_corners()
+        for point in env.boardCorners:
+            cv2.circle(img, point, 15, [0, 255, 0])
+        # Create a
+        #env.shapeMask = filter.get_shapes(img, env.worldMask ^ env.boardMask)
+        #board = shapes ^ ~env.boardMask
+
+        #edges = filter.infill_components(workSpace)
+
+        #img = filter.get_edges(img, saturationThreshold)
+        #img = filter.get_clahe(img)
+        #saturationMask = filter.color_mask(img, saturationThreshold)
+
+        #img = filter.remove_components()
+        #cv2.imshow("Contours", plot.view_pair(env.boardMask, env.shapeMask))
+        cv2.imshow("Contours", plot.show_mask(plot.show_mask(img, env.shapeMask, 1), env.boardMask, 2))
+
+        cv2.waitKey(1)
     exit(0)
 
     # Generate top-down view of image set

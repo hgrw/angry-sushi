@@ -30,6 +30,7 @@ class Calibration(object):
         self.render = outImg
 
 
+
 def get_points(image, dimms):
 
     # Instantiate calibration object

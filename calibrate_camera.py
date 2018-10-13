@@ -11,20 +11,71 @@ import os
 from src.camera import Camera
 from src.camera import NumpyEncoder
 
+
+hueLocs = []
+calibrating = True
+
+
+def click_and_crop(event, x, y, flags, param):
+
+    # grab references to the global variables
+    global hueLocs, calibrating
+
+    # if the left button is clicked, calibration routine underway
+    if event == cv2.EVENT_LBUTTONDOWN:
+        hueLocs.append([x, y])
+        print("calibration hues at locations: ", hueLocs)
+
+    if event == cv2.EVENT_RBUTTONDOWN:
+        print("CALIBRATION ROUTINE COMPLETE")
+        calibrating = False
+
+
+def generate_baselines(cam, hues, message):
+    print(message)
+    global calibrating
+    hsvCalibrationValues = []
+
+    while calibrating:
+        img = cam.get_img()
+        cv2.namedWindow("Calibration", cv2.WINDOW_NORMAL)
+        cv2.setMouseCallback("Calibration", click_and_crop)
+        cv2.imshow("Calibration", img)
+        cv2.waitKey(1)
+
+    cv2.destroyAllWindows()
+
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    for hue in hues:
+        hsvCalibrationValues.append(hsv[hue[1], hue[0], :])
+    return hsvCalibrationValues, []
+
+
 def main(exposure):
 
     # Calibration parameters
     targetDimensions = (6, 9)
     numTargets = 10
+    global hueLocs, calibrating
 
     # Get image from camera
     cam = Camera(exposure, targetDimensions)
+    cam.hardware_white_balance()
 
     # Collect points for calibration target
     cam.capture_calibration_targets(numTargets)
 
     # Generate camera model
     cal.calibrate_camera(cam, targetDimensions)
+
+    # Generate values for the tops of all objects to be incorporated into work space
+    cam.calibrationParams['red'], hueLocs = generate_baselines(cam, hueLocs, "SELECT RED TOPS")
+    calibrating = True
+    cam.calibrationParams['green'], hueLocs = generate_baselines(cam, hueLocs, "SELECT GREEN TOPS")
+    calibrating = True
+    cam.calibrationParams['blue'], hueLocs = generate_baselines(cam, hueLocs, "SELECT BLUE TOPS")
+    calibrating = True
+    cam.calibrationParams['yellow'], hueLocs = generate_baselines(cam, hueLocs, "SELECT YELLOW TOPS")
 
     # Print camera calibration matrix, intrinsics, extrinsics
     cal.print_calibration_matrix(cam, 6.2, 5)
@@ -38,52 +89,6 @@ def main(exposure):
         json.dump(cam.calibrationParams, fp, cls=NumpyEncoder)
 
     exit(0)
-
-    # Generate top-down view of image set
-    cal.generate_overhead(cam, 200)
-
-    # Show top-down view of dataset
-    cv2.imshow('rectified',
-               plot.view_set(calibrationTargets.rectified, (1280, 1024)))
-
-    cv2.waitKey(0)
-
-
-    ######################
-    #                    #
-    # PART B STARTS HERE #
-    #                    #
-    ######################
-
-    # Assign image set to object
-    obj = imageSet.__getattribute__(mode)
-
-    if mode == 'skilled2':
-        obj.images = [filter.trim_images(img) for img in obj.images]
-
-    # Calculated edges
-    obj.edges = [filter.get_edges(img) for img in obj.images]
-
-    # Infill components
-    obj.edges = [filter.infill_components(img) for img in obj.edges]
-
-    # Close
-    obj.edges = [cv2.morphologyEx(img, cv2.MORPH_CLOSE, np.ones((5, 5))) for img in obj.edges]
-
-    # Remove small components
-    obj.edges = [np.asarray(filter.remove_components(img, minSize=10000), dtype=np.uint8) for img in obj.edges]
-
-    # Simple Canny edges
-    obj.edges = [cv2.Canny(img, 40, 40, 20, L2gradient=True) for img in obj.edges]
-
-    # Generate bouding boxes
-    obj.boxes = [filter.get_boxes(edge) for edge in obj.edges]
-
-    obj.imagesWithBoxes = [utils.draw_bounding_boxes(obj.images[i], obj.boxes[i]) for i in range(0, len(obj.images))]
-
-    cv2.imshow('bounding boxes',
-               plot.view_set(obj.imagesWithBoxes, (1280, 1024)))
-    cv2.waitKey(0)
 
 
 if __name__ == "__main__":
