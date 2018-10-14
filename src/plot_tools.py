@@ -27,6 +27,16 @@ def view_set(images, resolution):
     return cv2.resize(np.vstack(rows), resolution)
 
 
+def plot_path(canvas, path):
+    (h, w, _) = canvas.shape
+    if len(path) > 0:
+        for point in range(1, len(path)):
+            cv2.line(canvas,
+                     (int(path[point - 1][0] * w), int(path[point - 1][1] * h)),
+                     (int(path[point][0] * w), int(path[point][1] * h)), [0, 255, 0], 2)
+    return canvas
+
+
 def view_pair(image1, image2, downSamp=True):
 
     # Assert image1 is colour

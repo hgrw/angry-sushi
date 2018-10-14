@@ -61,6 +61,18 @@ class Camera(object):
         self.cam.get_image(self.img)
         return self.img.get_image_data_numpy()
 
+    def get_object_hues(self):
+        hues = []
+        if len(self.calibrationParams['red']) > 1:
+            hues.append(np.mean(self.calibrationParams['red'], axis=0).astype(np.uint8))
+        if len(self.calibrationParams['green']) > 1:
+            hues.append(np.mean(self.calibrationParams['green'], axis=0).astype(np.uint8))
+        if len(self.calibrationParams['blue']) > 1:
+            hues.append(np.mean(self.calibrationParams['blue'], axis=0).astype(np.uint8))
+        if len(self.calibrationParams['yellow']) > 1:
+            hues.append(np.mean(self.calibrationParams['yellow'], axis=0).astype(np.uint8))
+        return hues
+
     def stream(self, rectify=False):
         while True:
             if rectify:

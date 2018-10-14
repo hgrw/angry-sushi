@@ -2,6 +2,7 @@ import src.calibration as calibrate
 import src.filter_tools as filter
 import src.plot_tools as plot
 import src.math_tools as utils
+import src.tree as tree
 import cv2
 import numpy as np
 import argparse
@@ -18,6 +19,10 @@ def main(exposure):
     targetDimensions = (6, 9)
     topThresh = 7
     shapeThresh = 15
+    testStart = (355, 355)
+    testEnd = (677, 677)
+    pathStep = 0.075
+    pathing = False
 
     # Get image from camera
     cam = Camera(exposure, targetDimensions)
@@ -26,7 +31,7 @@ def main(exposure):
 
     # Load camera parameters
     jsonFile = os.path.join(os.path.dirname(__file__), 'cameraData.json')
-    print "LOADING CAMERA PARAMETERS FROM: ", jsonFile
+    print("LOADING CAMERA PARAMETERS FROM: ", jsonFile)
     with open(jsonFile, 'r') as fp:
         cam.calibrationParams = json.load(fp)
 
@@ -38,7 +43,7 @@ def main(exposure):
         img = cam.get_img()
 
         # Extract elements by colour
-        env.shapeMask, shapes, tops = filter.get_shapes(img.copy(), hueLocs, topThresh, shapeThresh)
+        env.shapeMask, shapes, tops = filter.get_shapes(img.copy(), cam.get_object_hues(), topThresh, shapeThresh)
 
         # Get the darkest largest object in the scene, usually the board. All board pixels must be connected!
         env.boardMask = filter.get_board(img)
@@ -53,10 +58,20 @@ def main(exposure):
         env.boardMask = env.boardMask & ~env.shapeMask
         env.boardMask = filter.remove_components(env.boardMask, largest=True)
 
-
         env.get_board_corners()
         for point in env.boardCorners:
             cv2.circle(img, point, 15, [0, 255, 0])
+
+        cv2.circle(img, testStart, 10, [255, 0, 0])
+
+        cv2.circle(img, testEnd, 10, [255, 0, 0])
+
+
+        canvas = plot.show_mask(plot.show_mask(img, env.shapeMask, 1), env.boardMask, 2)
+        if pathing:
+            path = tree.generate_path(env.boardMask, testStart, testEnd, pathStep)
+            if path is not None:
+                canvas = plot.plot_path(canvas, path)
         # Create a
         #env.shapeMask = filter.get_shapes(img, env.worldMask ^ env.boardMask)
         #board = shapes ^ ~env.boardMask
@@ -69,9 +84,12 @@ def main(exposure):
 
         #img = filter.remove_components()
         #cv2.imshow("Contours", plot.view_pair(env.boardMask, env.shapeMask))
-        cv2.imshow("Contours", plot.show_mask(plot.show_mask(img, env.shapeMask, 1), env.boardMask, 2))
+        cv2.imshow("Contours", canvas)
 
-        cv2.waitKey(1)
+        k = cv2.waitKey(1)
+        if k == 115:    # Esc key to stop
+            print("PATHING MODE ENGAGED")
+            pathing = True
     exit(0)
 
     # Generate top-down view of image set
