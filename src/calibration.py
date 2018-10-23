@@ -14,7 +14,6 @@ class Calibration(object):
         self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
     def try_approximate_corners(self, dimensions):
-
         found, corners = cv2.findChessboardCorners(self.frame, dimensions,
                                                    flags=cv2.CALIB_CB_ADAPTIVE_THRESH +
                                                    cv2.CALIB_CB_ASYMMETRIC_GRID)
@@ -28,7 +27,6 @@ class Calibration(object):
         outImg = img.copy()
         cv2.drawChessboardCorners(outImg, dimms, self.points, True)
         self.render = outImg
-
 
 
 def get_points(image, dimms):

@@ -38,9 +38,9 @@ def generate_baselines(cam, hues, message):
 
     while calibrating:
         img = cam.get_img()
-        cv2.namedWindow("Calibration", cv2.WINDOW_NORMAL)
-        cv2.setMouseCallback("Calibration", click_and_crop)
-        cv2.imshow("Calibration", img)
+        cv2.namedWindow('img', cv2.WINDOW_NORMAL)
+        cv2.setMouseCallback('img', click_and_crop)
+        cv2.imshow('img', img)
         cv2.waitKey(1)
 
     cv2.destroyAllWindows()
@@ -51,16 +51,18 @@ def generate_baselines(cam, hues, message):
     return hsvCalibrationValues, []
 
 
-def main(exposure):
+def main():
 
     # Calibration parameters
-    targetDimensions = (6, 9)
+    targetDimensions = (6, 8)
+    exposure = 10000
     numTargets = 10
     global hueLocs, calibrating
 
     # Get image from camera
-    cam = Camera(exposure, targetDimensions)
+    cam = Camera(targetDimensions, exposure)
     cam.hardware_white_balance()
+    cam.calibrate_lens()
 
     # Collect points for calibration target
     cam.capture_calibration_targets(numTargets)
@@ -76,11 +78,13 @@ def main(exposure):
     cam.calibrationParams['blue'], hueLocs = generate_baselines(cam, hueLocs, "SELECT BLUE TOPS")
     calibrating = True
     cam.calibrationParams['yellow'], hueLocs = generate_baselines(cam, hueLocs, "SELECT YELLOW TOPS")
+    calibrating = True
+    cam.calibrationParams['purple'], hueLocs = generate_baselines(cam, hueLocs, "SELECT CARD BACKS")
 
     # Print camera calibration matrix, intrinsics, extrinsics
     cal.print_calibration_matrix(cam, 6.2, 5)
 
-    cam.stream(rectify=True)
+    #cam.stream(rectify=True)
 
     # Save camera parameters
     jsonFile = os.path.join(os.path.dirname(__file__), 'cameraData.json')
@@ -94,6 +98,4 @@ def main(exposure):
 if __name__ == "__main__":
 
    parser = argparse.ArgumentParser(description="METR4202 imaging and pathing project Harry Roache-Wilson")
-   parser.add_argument("exposure", type=int, help="Exposure value. High value is good for tight aperture, deep field")
-   args = parser.parse_args()
-   main(args.exposure)
+   main()

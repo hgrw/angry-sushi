@@ -7,7 +7,7 @@ import math
 
 class Node(object):
 
-    def __init__(self, start, goal, cost):
+    def __init__(self, start, goal):
         self.distance = math.hypot(goal[0] - start[0], goal[1] - start[1])
         self.start = start  # Node position
         self.goal = goal    # Goal position
@@ -45,14 +45,14 @@ def generate_node(workspace, parent, sample, stepSize, fin=False):
         newX = sample[0]
         newY = sample[1]
 
-    if workspace[int(newY * h), int(newX * w)] == 255:
-        update = Node((newX, newY), parent.goal, math.hypot(newX - parent.goal[0], newY - parent.goal[1]))
+    if workspace[min(int(newY * h), h - 1), min(int(newX * w), w - 1)] == 255:
+        update = Node((newX, newY), parent.goal)
         update.parent = parent
         return update
     return None
 
 
-def generate_path(canvas, startPixel, endPixel, stepSize, plot=False):
+def generate_path(canvas, startPixel, endPixel, stepSize):
 
     # Convert start and end pixels to node locations
     (w, h) = canvas.shape
@@ -60,7 +60,7 @@ def generate_path(canvas, startPixel, endPixel, stepSize, plot=False):
     endNode = (float(endPixel[1]) / h, float(endPixel[0]) / w)
 
     # Store euclidean distance heuristic in root node
-    newTree = Node(startNode, endNode, 0)
+    newTree = Node(startNode, endNode)
     newTree.root = startNode
     finalPoint = False
 

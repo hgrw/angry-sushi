@@ -62,78 +62,31 @@ def get_boxes(edge):
         return None
 
 
-def get_shapes1(img, mask):
-
-    mask = cv2.morphologyEx(mask, cv2.MORPH_ERODE, np.ones((10, 10), np.uint8), iterations=3)
-    return cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8))
-
-def get_board(image):
-    imageLab = cv2.cvtColor(cv2.bilateralFilter(image, 9, 40, 40), cv2.COLOR_BGR2LAB)
-    labMask = np.asarray((imageLab[:, :, 0] < 70) * 255, dtype=np.uint8)
-    labMask = cv2.morphologyEx(labMask, cv2.MORPH_DILATE, np.ones((6, 6), np.uint8), iterations=1)
-    labMask = cv2.morphologyEx(labMask, cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8))
-    labMask = remove_components(labMask, largest=True)
-
-    return labMask
-
-
-def get_shapes(image, hues, topThresh, shapeThresh):
+def get_elements(image, hues, bThresh, hThresh, sThresh, vThresh):
     image = cv2.bilateralFilter(image, 9, 40, 40)
     hsv = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2HSV)
-    outMask = np.zeros(image[:, :, 0].shape, dtype=np.uint8)
-    topMasks = []
-    shapeMasks = []
+    boardMask = np.zeros(image[:, :, 0].shape, dtype=np.uint8)
+    tops = []
+    shapes = []
     for hue in hues:
-        hsvPixel = hsv[hue[1], hue[0], :]
-        shapeMask = cv2.inRange(hsv,
-                                (max(hsvPixel[0] - shapeThresh, 0), 50, 50),
-                                (min(hsvPixel[0] + shapeThresh, 255), 255, 255))
-        shapeMask = cv2.morphologyEx(shapeMask, cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8))
-        shapeMask = remove_components(shapeMask, minSize=10000)
-
         topMask = cv2.inRange(hsv,
-                              (max(hsvPixel[0] - topThresh, 0),
-                               max(hsvPixel[1] - topThresh, 0),
-                               max(hsvPixel[2] - topThresh, 0)),
-                              (min(hsvPixel[0] + topThresh, 255),
-                               min(hsvPixel[1] + topThresh, 255),
-                               min(hsvPixel[2] + topThresh, 255)))
-        topMask = cv2.morphologyEx(topMask, cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8))
-        topMask = remove_components(topMask, minSize=1000)
+                              (max(hue[0] - hThresh, 0),
+                               max(hue[1] - sThresh, 0),
+                               max(hue[2] - vThresh, 0)),
+                              (min(hue[0] + hThresh, 180),
+                               max(hue[1] + sThresh, 255),
+                               max(hue[2] + vThresh, 255)))
+        shapeMask = cv2.inRange(hsv,
+                                (max(hue[0] - int(1.2 * hThresh), 0), 40, 40),
+                                (min(hue[0] + int(1.2 * hThresh), 180), 255, 255))
 
-        topMasks.append(topMask)
-        shapeMasks.append(shapeMask)
-
-        outMask = outMask | shapeMask
-        #cv2.imshow('ok', plot.view_pair(topMask, shapeMask))
-        #cv2.waitKey(0)
-    return outMask, topMasks, shapeMasks
-    #image = cv2.medianBlur(image, 9)
-
-    # Remove saturated pixels
-    #image = color_mask(image, saturationThresh, binary=True)
-
-    # Apply threshold
-    #_, dst = cv2.threshold(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), 100, 255, cv2.THRESH_BINARY)
-
-    # Close and fill image
-    #image = cv2.morphologyEx(image, cv2.MORPH_ERODE, np.ones((6, 6), np.uint8), iterations=1)
-    #image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8))
-    #image = remove_components(image, largest=True)
-    #image = infill_components(image)
-    #cv2.imshow('im', image)
-    return outMask
-    #contours, hierarchy = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-    #for cnt in contours:
-    #    cv2.drawContours(image, [cnt], 0, 255, -1)
-
-    image = cv2.morphologyEx(image, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
-
-    (mu, sigma) = cv2.meanStdDev(image)
-
-    # Set experimental values from:  mu - sigma, mu + sigma, 20
-    return cv2.Canny(cv2.medianBlur(image, 9), mu - sigma, mu + sigma, 20, L2gradient=True)
+        boardMask = boardMask | cv2.dilate(cv2.inRange(hsv, (0, 0, 0), (180, bThresh, bThresh)),
+                                           np.ones((3, 3), np.uint8), iterations=3)
+        tops.append(cv2.morphologyEx(remove_components(topMask, minSize=10000),
+                                     cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8)))
+        shapes.append(cv2.morphologyEx(remove_components(shapeMask, minSize=10000),
+                                       cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8)))
+    return cv2.morphologyEx(boardMask, cv2.MORPH_CLOSE, np.ones((8, 8), np.uint8)), tops, shapes
 
 
 def infill_components(image):
