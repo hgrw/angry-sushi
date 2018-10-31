@@ -28,15 +28,29 @@ class Camera(object):
         self.cam = cam
         self.img = xiapi.Image()
 
-    def hardware_white_balance(self):
+    def hardware_white_balance_on(self):
         self.cam.enable_auto_wb()
         self.cam.get_param(xiapi.XI_PRM_MANUAL_WB, 1)
         self.cam.set_param(xiapi.XI_PRM_MANUAL_WB, 1)
 
+    def hardware_white_balance_off(self):
+        self.cam.enable_auto_wb()
+        self.cam.get_param(xiapi.XI_PRM_MANUAL_WB, 1)
+        self.cam.set_param(xiapi.XI_PRM_MANUAL_WB, 0)
+
     def calibrate_lens(self):
+        print("PUT WHITE CARD IN FRONT OF LENS FOR WHITE BALANCE. ESC WHEN DONE")
+        self.hardware_white_balance_on()
+        while True:
+            frame = self.get_img()
+
+            cv2.imshow('video', frame)
+            k = cv2.waitKey(1)
+            if k == 27:    # Esc key to stop
+                self.hardware_white_balance_off()
+                break
 
         print("SET FOCUS. PRESS e TO UPDATE EXPOSURE. ESC ONCE DONE.")
-
         h, w, _ = self.get_img().shape
         while True:
             frame = self.get_img()

@@ -61,7 +61,6 @@ def main():
 
     # Get image from camera
     cam = Camera(targetDimensions, exposure)
-    cam.hardware_white_balance()
     cam.calibrate_lens()
 
     # Collect points for calibration target
