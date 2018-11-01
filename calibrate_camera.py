@@ -24,10 +24,9 @@ def click_and_crop(event, x, y, flags, param):
     # if the left button is clicked, calibration routine underway
     if event == cv2.EVENT_LBUTTONDOWN:
         hueLocs.append([x, y])
-        print("calibration hues at locations: ", hueLocs)
+        print('collected {} hues'.format(len(hueLocs)))
 
     if event == cv2.EVENT_RBUTTONDOWN:
-        print("CALIBRATION ROUTINE COMPLETE")
         calibrating = False
 
 
@@ -54,13 +53,18 @@ def generate_baselines(cam, hues, message):
 def main():
 
     # Calibration parameters
-    targetDimensions = (6, 8)
-    exposure = 10000
-    numTargets = 10
+    targetDimensions = (6, 9)
+    exposure = 60000
+    numTargets = 1
     global hueLocs, calibrating
 
-    # Get image from camera
+    # Instantiate camera
     cam = Camera(targetDimensions, exposure)
+
+    # Store white balance coefficients
+    cam.white_balance()
+
+    # Set focus and exposure
     cam.calibrate_lens()
 
     # Collect points for calibration target
@@ -81,12 +85,11 @@ def main():
     cam.calibrationParams['purple'], hueLocs = generate_baselines(cam, hueLocs, "SELECT CARD BACKS")
 
     # Print camera calibration matrix, intrinsics, extrinsics
-    cal.print_calibration_matrix(cam, 6.2, 5)
 
     #cam.stream(rectify=True)
 
     # Save camera parameters
-    jsonFile = os.path.join(os.path.dirname(__file__), 'cameraData.json')
+    jsonFile = os.path.join(os.path.dirname(__file__), 'cameraData_78-122.json')
     print "CALIBRATION COMPLETE, SAVING CAMERA PARAMETERS to : ", jsonFile
     with open(jsonFile, 'w') as fp:
         json.dump(cam.calibrationParams, fp, cls=NumpyEncoder)

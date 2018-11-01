@@ -12,13 +12,20 @@ import os
 from src.camera import Camera
 from src.workspace import Environment
 
+def draw(img, corners, imgpts):
+    corner = tuple(corners[0].ravel())
+    img = cv2.line(img, corner, tuple(imgpts[0].ravel()), (255,0,0), 5)
+    img = cv2.line(img, corner, tuple(imgpts[1].ravel()), (0,255,0), 5)
+    img = cv2.line(img, corner, tuple(imgpts[2].ravel()), (0,0,255), 5)
+    return img
+
 
 def main():
 
     # Calibration parameters
     targetDimensions = (6, 9)
     #exposure = 10000
-    exposure = 40000
+    exposure = 60000
     hThresh = 10
     sThresh = 10
     vThresh = 10
@@ -32,28 +39,70 @@ def main():
     # Get image from camera
     cam = Camera(targetDimensions, exposure)
     env = Environment()
-    cam.hardware_white_balance()
 
     # Load camera parameters
-    jsonFile = os.path.join(os.path.dirname(__file__), 'cameraData.json')
+    jsonFile = os.path.join(os.path.dirname(__file__), 'cameraData_78-122.json')
     print("LOADING CAMERA PARAMETERS")
     with open(jsonFile, 'r') as fp:
         cam.calibrationParams = json.load(fp)
+        cam.set_colour_coefficients()
+        cam.get_rectify_mask()
 
+    axis = np.float32([[3, 0, 0], [0, 3, 0], [0, 0, -3]]).reshape(-1, 3)
+
+    while True:
+        img = cam.get_img(rectify=True)
+        """
+        The below function provides matrices that map 3d points into the world frame. When calibrating, the first calibration
+        target is used to define the world frame, and so must be aligned with the camera mount and/or manipulator mount.
+        
+        Using these matrices, we can generate a virtual camera at a very specific location. This won't give us a rectangular workspace!
+        
+        In theory, using the virtual-camera-rectified image, in conjunction with an image of a chocked up workspace, the findhomography function
+        in cv2 should give us the euler angles of the workspace.
+        
+        """
+        objPoints, corners, mtx, dist, rvecs, tvecs = cam.get_world_frame_data(0)
+
+        # Find the rotation and translation vectors.
+        #_, rvecs, tvecs, inliers = cv2.solvePnPRansac(objPoints, corners, mtx, dist)
+
+        # project 3D points to image plane
+        imgpts, jac = cv2.projectPoints(axis, rvecs, tvecs, mtx, dist)
+
+        img = draw(img, corners, imgpts)
+        cv2.imshow('img', img)
+        cv2.waitKey(0)
+
+    cv2.imshow('nadir', cal.get_nadir(cam.get_img(rectify=True), cam.calibrationParams['mtx']))
+    cv2.waitKey(0)
+    exit(0)
     #cam.calibrate_lens()
     #cam.record_video('/home/mars/Videos/nightrider_local.avi')
 
     while True:
-        img = cam.get_img(rectify=False)
+        img = calibrate.get_nadir(cam.get_img(rectify=True))
 
         # Extract elements by colour
-        env.boardMask, env.sides, env.tops = filter.get_elements(img.copy(),
+        env.boardMask, sidesMask, topsMask, env.sides, env.tops = filter.get_elements(img.copy(),
                                                                  cam.get_object_hues(),
+                                                                 cam.rectifyMask,
                                                                  bThresh, hThresh, sThresh, vThresh)
 
-        # Remove extraneous components from edge of image
-        env.boardMask = env.boardMask & filter.remove_components(
-            cv2.dilate(env.boardMask, np.ones((15, 15), np.uint8), iterations=3), largest=True)
+        #env.sh
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        gray = np.float32(gray)
+        dst = cv2.cornerHarris(gray, 2, 3, 0.04)
+
+        # result is dilated for marking the corners, not important
+        dst = cv2.dilate(dst, None)
+
+        # Threshold for an optimal value, it may vary depending on the image.
+        img[dst > 0.01 * dst.max()] = [0, 0, 255]
+
+        #env.boardMask = env.boardMask & filter.remove_components(
+        #    cv2.dilate(env.boardMask, np.ones((15, 15), np.uint8), iterations=3), largest=True)
 
         env.get_board_corners()
         for point in env.boardCorners:
@@ -62,7 +111,7 @@ def main():
         cv2.circle(img, testStart, 10, [255, 0, 0])
         cv2.circle(img, testEnd, 10, [255, 0, 0])
 
-        canvas = plot.show_mask(img, env.boardMask, 2)
+        canvas = plot.show_mask(plot.show_mask(img, env.boardMask, 2), topsMask, 1)
 
         if pathing:
             canvas = env.four_point_transform(canvas)

@@ -62,10 +62,13 @@ def get_boxes(edge):
         return None
 
 
-def get_elements(image, hues, bThresh, hThresh, sThresh, vThresh):
+def get_elements(image, hues, rectifyMask, bThresh, hThresh, sThresh, vThresh):
     image = cv2.bilateralFilter(image, 9, 40, 40)
     hsv = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2HSV)
     boardMask = np.zeros(image[:, :, 0].shape, dtype=np.uint8)
+    topMasks = np.zeros(image[:, :, 0].shape, dtype=np.uint8)
+    sideMasks = np.zeros(image[:, :, 0].shape, dtype=np.uint8)
+
     tops = []
     shapes = []
     for hue in hues:
@@ -79,14 +82,21 @@ def get_elements(image, hues, bThresh, hThresh, sThresh, vThresh):
         shapeMask = cv2.inRange(hsv,
                                 (max(hue[0] - int(1.2 * hThresh), 0), 40, 40),
                                 (min(hue[0] + int(1.2 * hThresh), 180), 255, 255))
+        boardMask = boardMask | cv2.inRange(hsv, (0, 0, 0), (180, bThresh, bThresh)) & ~rectifyMask
+        sideMasks = sideMasks | shapeMask
+        topMasks = topMasks | topMask
 
-        boardMask = boardMask | cv2.dilate(cv2.inRange(hsv, (0, 0, 0), (180, bThresh, bThresh)),
-                                           np.ones((3, 3), np.uint8), iterations=3)
         tops.append(cv2.morphologyEx(remove_components(topMask, minSize=10000),
                                      cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8)))
         shapes.append(cv2.morphologyEx(remove_components(shapeMask, minSize=10000),
                                        cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8)))
-    return cv2.morphologyEx(boardMask, cv2.MORPH_CLOSE, np.ones((8, 8), np.uint8)), tops, shapes
+
+    # Remove lines on each image edge, caused by image rectification
+    boardMask[0, :] = 0
+    boardMask[-1, :] = 0
+    boardMask[:, 0] = 0
+    boardMask[:, -1] = 0
+    return cv2.morphologyEx(boardMask, cv2.MORPH_CLOSE, np.ones((8, 8), np.uint8)), sideMasks, topMasks, tops, shapes
 
 
 def infill_components(image):

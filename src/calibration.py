@@ -40,10 +40,13 @@ def get_points(image, dimms):
         return data
 
 
+def get_nadir(img, extrinsics):
+
+    return img
+
 def calibrate_camera(camera, dimms):
     calibSet = camera.calibrationObjects  # Retrive points for all images in ImageSet
-    rows = dimms[0]
-    cols = dimms[1]
+    rows, cols = dimms
     shape = calibSet[0].frame.shape
 
     objp = np.zeros((cols * rows, 3), np.float32)
