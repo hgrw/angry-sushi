@@ -3,6 +3,19 @@ import numpy as np
 import math
 
 
+def render_origin_frame(img, corners, rvecs, tvecs, mtx, dist):
+
+    axis = np.float32([[3, 0, 0], [0, 3, 0], [0, 0, -3]]).reshape(-1, 3)
+
+    # project 3D points to image plane
+    imgpts, jac = cv2.projectPoints(axis, rvecs, tvecs, mtx, dist)
+    corner = tuple(corners[0].ravel())
+    img = cv2.line(img, corner, tuple(imgpts[0].ravel()), (255, 0, 0), 5)
+    img = cv2.line(img, corner, tuple(imgpts[1].ravel()), (0, 255, 0), 5)
+    img = cv2.line(img, corner, tuple(imgpts[2].ravel()), (0, 0, 255), 5)
+    return img
+
+
 def show_mask(img, mask, chan):
     bgr = img.copy()
     bgr[:, :, :] = 0

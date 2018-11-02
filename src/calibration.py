@@ -8,7 +8,8 @@ class Calibration(object):
     def __init__(self, image):
         self.frame = image      # Calibration target images
         self.render = None      # Calibration target corners rendered on image
-        self.points = None      # Sub-pixel location of points on calibration target
+        self.corners = None     # Sub-pixel location of points on calibration target
+        self.objPoints = None   # Location of corners in calibration target frame. Origin at top left corner.
 
         # Stop criteria for calibration
         self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -19,13 +20,13 @@ class Calibration(object):
                                                    cv2.CALIB_CB_ASYMMETRIC_GRID)
         if found:
             cv2.cornerSubPix(self.frame, corners, (11, 11), (-1, -1), self.criteria)
-            self.points = corners
+            self.corners = corners
             print("SUITABLE TARGET ACQUIRED")
         return found
 
     def render_points(self, img, dimms):
         outImg = img.copy()
-        cv2.drawChessboardCorners(outImg, dimms, self.points, True)
+        cv2.drawChessboardCorners(outImg, dimms, self.corners, True)
         self.render = outImg
 
 
@@ -44,6 +45,7 @@ def get_nadir(img, extrinsics):
 
     return img
 
+
 def calibrate_camera(camera, dimms):
     calibSet = camera.calibrationObjects  # Retrive points for all images in ImageSet
     rows, cols = dimms
@@ -53,7 +55,7 @@ def calibrate_camera(camera, dimms):
     objp[:, :2] = np.mgrid[0:rows, 0:cols].T.reshape(-1, 2)
 
     # Generate 2d points in image plane. Be pythonic about it
-    imgPoints = [calibSet[i].points for i in range(0, len(calibSet))]
+    imgPoints = [calibSet[i].corners for i in range(0, len(calibSet))]
 
     # Allocate space in an array for 3d points in world frame
     objPoints = [objp for _ in range(0, len(calibSet))]

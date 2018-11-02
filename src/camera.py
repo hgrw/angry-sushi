@@ -1,5 +1,6 @@
 from ximea import xiapi
 import src.calibration as calibrate
+import src.plot_tools as plot
 import cv2
 import numpy as np
 import json
@@ -90,22 +91,74 @@ class Camera(object):
         captured = 0
         while captured < numTargets:
             img = self.stream()
+
+            # Instantiate calibration object and populate with checkerboard corners
             ret = calibrate.get_points(img, self.targetDimensions)
+
+            # If valid calibration target image, render target on image and append calibration data
             if ret is not None:
                 cv2.imshow('img', ret.render)
                 cv2.waitKey(0)
                 self.calibrationObjects.append(ret)
                 captured += 1
 
+    def set_origin(self, dimms):
+
+        # Generate object points (checkerboard corners in checkerboard frame)
+        rows, cols = dimms
+        objp = np.zeros((cols * rows, 3), np.float32)
+        objp[:, :2] = np.mgrid[0:rows, 0:cols].T.reshape(-1, 2)
+
+        print('USE CALIBRATION TARGET TO SET ORIGIN. PRESS ESC TO SAVE')
+        while True:
+
+            # Stream rectified camera image
+            img = self.get_img(rectify=True)
+
+            # Fetch calibration target corners
+            ret = calibrate.get_points(img, self.targetDimensions)
+
+            # If target image is valid, plot origin frame on image
+            if ret is not None:
+                mtx = np.asarray(self.calibrationParams['mtx'], dtype=np.float32)
+                dist = np.asarray(self.calibrationParams['dist'][0], dtype=np.float32)
+
+                # Generate rotation and translation vectors for calibration target
+                _, rvecs, tvecs, inliers = cv2.solvePnPRansac(objp, ret.corners, mtx, dist)
+
+                img = plot.render_origin_frame(img, ret.corners, rvecs, tvecs, mtx, dist)
+
+            # Plot origin frame on image
+            cv2.imshow('img', img)
+
+            k = cv2.waitKey(1)
+            if k == 27:    # Esc key to stop
+                break
+
+        # Add origin data to calibration file
+        self.calibrationParams['objPoints'].append(ret.objPoints)
+        self.calibrationParams['imgPoints'].append(ret.corners)
+        self.calibrationParams['rvecs'].append(rvecs)
+        self.calibrationParams['tvecs'].append(tvecs)
+        print('ORIGIN DATA SAVED TO FILE')
+
     def update_exposure(self, exposure):
         self.cam.set_exposure(exposure)
 
-    def get_img(self, rectify=False):
+    def get_img(self, rectify=False, blur=False):
         self.cam.get_image(self.img)
         if not rectify:
-            return self.img.get_image_data_numpy()
+            if not blur:
+                return self.img.get_image_data_numpy()
+            else:
+                return cv2.bilateralFilter(self.img.get_image_data_numpy(), 9, 40, 40)
         else:
-            return calibrate.remove_distortion(self.calibrationParams, self.img.get_image_data_numpy(), crop=False)
+            if not blur:
+                return calibrate.remove_distortion(self.calibrationParams, self.img.get_image_data_numpy(), crop=False)
+            else:
+                return cv2.bilateralFilter(calibrate.remove_distortion(self.calibrationParams,
+                                                                       self.img.get_image_data_numpy(), crop=False),
+                                           9, 40, 40)
 
     def get_rectify_mask(self):
         self.cam.get_image(self.img)

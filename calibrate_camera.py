@@ -36,7 +36,7 @@ def generate_baselines(cam, hues, message):
     hsvCalibrationValues = []
 
     while calibrating:
-        img = cam.get_img()
+        img = cam.get_img(blur=True)
         cv2.namedWindow('img', cv2.WINDOW_NORMAL)
         cv2.setMouseCallback('img', click_and_crop)
         cv2.imshow('img', img)
@@ -53,9 +53,9 @@ def generate_baselines(cam, hues, message):
 def main():
 
     # Calibration parameters
-    targetDimensions = (6, 9)
-    exposure = 60000
-    numTargets = 1
+    targetDimensions = (6, 8)
+    exposure = 30000
+    numTargets = 8
     global hueLocs, calibrating
 
     # Instantiate camera
@@ -73,6 +73,9 @@ def main():
     # Generate camera model
     cal.calibrate_camera(cam, targetDimensions)
 
+    # Set origin, passing in checkerboard dimensions and shape of rectified image
+    cam.set_origin(targetDimensions)
+
     # Generate values for the tops of all objects to be incorporated into work space
     cam.calibrationParams['red'], hueLocs = generate_baselines(cam, hueLocs, "SELECT RED TOPS")
     calibrating = True
@@ -89,7 +92,7 @@ def main():
     #cam.stream(rectify=True)
 
     # Save camera parameters
-    jsonFile = os.path.join(os.path.dirname(__file__), 'cameraData_78-122.json')
+    jsonFile = os.path.join(os.path.dirname(__file__), 'cameraData_AEV.json')
     print "CALIBRATION COMPLETE, SAVING CAMERA PARAMETERS to : ", jsonFile
     with open(jsonFile, 'w') as fp:
         json.dump(cam.calibrationParams, fp, cls=NumpyEncoder)

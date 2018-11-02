@@ -12,12 +12,7 @@ import os
 from src.camera import Camera
 from src.workspace import Environment
 
-def draw(img, corners, imgpts):
-    corner = tuple(corners[0].ravel())
-    img = cv2.line(img, corner, tuple(imgpts[0].ravel()), (255,0,0), 5)
-    img = cv2.line(img, corner, tuple(imgpts[1].ravel()), (0,255,0), 5)
-    img = cv2.line(img, corner, tuple(imgpts[2].ravel()), (0,0,255), 5)
-    return img
+
 
 
 def main():
@@ -41,17 +36,15 @@ def main():
     env = Environment()
 
     # Load camera parameters
-    jsonFile = os.path.join(os.path.dirname(__file__), 'cameraData_78-122.json')
+    jsonFile = os.path.join(os.path.dirname(__file__), 'cameraData_AEV.json')
     print("LOADING CAMERA PARAMETERS")
     with open(jsonFile, 'r') as fp:
         cam.calibrationParams = json.load(fp)
         cam.set_colour_coefficients()
         cam.get_rectify_mask()
 
-    axis = np.float32([[3, 0, 0], [0, 3, 0], [0, 0, -3]]).reshape(-1, 3)
-
     while True:
-        img = cam.get_img(rectify=True)
+        img = cam.get_img()
         """
         The below function provides matrices that map 3d points into the world frame. When calibrating, the first calibration
         target is used to define the world frame, and so must be aligned with the camera mount and/or manipulator mount.
@@ -67,10 +60,7 @@ def main():
         # Find the rotation and translation vectors.
         #_, rvecs, tvecs, inliers = cv2.solvePnPRansac(objPoints, corners, mtx, dist)
 
-        # project 3D points to image plane
-        imgpts, jac = cv2.projectPoints(axis, rvecs, tvecs, mtx, dist)
-
-        img = draw(img, corners, imgpts)
+        img = plot.render_origin_frame(img, corners, rvecs, tvecs, mtx, dist)
         cv2.imshow('img', img)
         cv2.waitKey(0)
 
