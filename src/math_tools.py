@@ -1,8 +1,30 @@
 import numpy as np
 import math
+import imutils
 import cv2
 from collections import defaultdict
 from scipy.spatial import distance as dist
+
+
+def rotate_image(image):
+    h, w = image.shape
+
+    # Double image dimensions and rotate by 45 degrees to reliably find corners
+    rotated = image.copy()
+    rotated = np.c_[rotated, np.zeros((h, int(w/2)), dtype=np.uint8)]
+    rotated = np.c_[np.zeros((h, int(w/2)), dtype=np.uint8), rotated]
+    rotated = np.r_[rotated, np.zeros((int(h/2), w * 2), dtype=np.uint8)]
+    rotated = np.r_[np.zeros((int(h/2), w * 2), dtype=np.uint8), rotated]
+    return imutils.rotate(rotated, 45)
+
+
+def unrotate_corners(corners, image):
+
+    vectors = [(corner) for corner in corners]
+    unrotated = imutils.rotate(image, -45)
+    cv2.imshow('rotated', image)
+    cv2.imshow('unrotated', unrotated)
+    print(corners)
 
 def order_points(pts):
     # sort the points based on their x-coordinates

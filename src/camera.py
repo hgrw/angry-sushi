@@ -50,7 +50,7 @@ class Camera(object):
         print("PUT WHITE CARD IN FRONT OF LENS FOR WHITE BALANCE. PRESS ANY KEY WHEN READY")
         self.hardware_white_balance_on()
         while True:
-            frame = self.get_img()
+            frame = self.get_img(blur=True)
 
             cv2.imshow('video', frame)
             k = cv2.waitKey(1)
@@ -160,13 +160,17 @@ class Camera(object):
                                                                        self.img.get_image_data_numpy(), crop=False),
                                            9, 40, 40)
 
-    def get_rectify_mask(self):
+    def get_rectify_mask(self, blockout):
         self.cam.get_image(self.img)
 
         # Generate mask of rectification artefact. Dilate it by ~10 pixels
         self.rectifyMask = cv2.dilate(np.asarray((cv2.cvtColor(
             calibrate.remove_distortion(self.calibrationParams, self.img.get_image_data_numpy(), crop=False),
             cv2.COLOR_BGR2GRAY) == 0) * 255, dtype=np.uint8), np.ones((3, 3), np.uint8), iterations=3)
+
+        # Remove blockout regions from image
+        self.rectifyMask[:, blockout[0][0]:] = 255  # Remove camera mount
+        self.rectifyMask[blockout[2][1]:, :] = 255  # Remove manipulator mount
 
     def record_video(self, output):
 

@@ -53,9 +53,11 @@ def generate_baselines(cam, hues, message):
 def main():
 
     # Calibration parameters
-    targetDimensions = (6, 8)
-    exposure = 30000
-    numTargets = 8
+    targetDimensions = (6, 9)               # Calibration target dimensions in squares
+    exposure = 60000                        # Exposure (gain). Should be high to increase depth of field
+    numTargets = 8                          # Number of calibration targets to collect
+    blockout = [(1140, 0), (1140, 1023),
+                (200, 960), (1080, 960)]    # Blockout region for bottom of camera mount and arm mount
     global hueLocs, calibrating
 
     # Instantiate camera
@@ -75,6 +77,9 @@ def main():
 
     # Set origin, passing in checkerboard dimensions and shape of rectified image
     cam.set_origin(targetDimensions)
+
+    # Show blockout regions for aligning workspace
+    cal.align_tilt(cam, blockout)
 
     # Generate values for the tops of all objects to be incorporated into work space
     cam.calibrationParams['red'], hueLocs = generate_baselines(cam, hueLocs, "SELECT RED TOPS")

@@ -21,7 +21,6 @@ class Calibration(object):
         if found:
             cv2.cornerSubPix(self.frame, corners, (11, 11), (-1, -1), self.criteria)
             self.corners = corners
-            print("SUITABLE TARGET ACQUIRED")
         return found
 
     def render_points(self, img, dimms):
@@ -40,6 +39,17 @@ def get_points(image, dimms):
         data.render_points(image, dimms)               # Render points
         return data
 
+
+def align_tilt(cam, blockout):
+    print('ALIGN CAMERA TILT LINE WITH BOTTOM OF CAMERA MOUNT')
+    while True:
+        img = cam.get_img(rectify=True)
+        cv2.line(img, blockout[0], blockout[1], [0, 255, 0], 3)
+        cv2.line(img, blockout[2], blockout[3], [0, 255, 0], 3)
+        cv2.imshow('img', img)
+        k = cv2.waitKey(1)
+        if k == 27:    # Esc key to stop
+            break
 
 def get_nadir(img, extrinsics):
 

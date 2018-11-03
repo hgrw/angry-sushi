@@ -25,11 +25,14 @@ def main():
     sThresh = 10
     vThresh = 10
     #bThresh = 70
-    bThresh = 90
+    bThresh = 70
     testStart = (355, 355)
     testEnd = (677, 677)
     pathStep = 0.075
     pathing = False
+
+    blockout = [(1140, 0), (1140, 1023),
+            (200, 960), (1080, 960)]        # Blockout region for bottom of camera mount and arm mount
 
     # Get image from camera
     cam = Camera(targetDimensions, exposure)
@@ -41,10 +44,10 @@ def main():
     with open(jsonFile, 'r') as fp:
         cam.calibrationParams = json.load(fp)
         cam.set_colour_coefficients()
-        cam.get_rectify_mask()
+        cam.get_rectify_mask(blockout)
 
-    while True:
-        img = cam.get_img()
+    #while True:
+    #    img = cam.get_img()
         """
         The below function provides matrices that map 3d points into the world frame. When calibrating, the first calibration
         target is used to define the world frame, and so must be aligned with the camera mount and/or manipulator mount.
@@ -55,53 +58,50 @@ def main():
         in cv2 should give us the euler angles of the workspace.
         
         """
-        objPoints, corners, mtx, dist, rvecs, tvecs = cam.get_world_frame_data(0)
+    #    objPoints, corners, mtx, dist, rvecs, tvecs = cam.get_world_frame_data(0)
 
         # Find the rotation and translation vectors.
         #_, rvecs, tvecs, inliers = cv2.solvePnPRansac(objPoints, corners, mtx, dist)
 
-        img = plot.render_origin_frame(img, corners, rvecs, tvecs, mtx, dist)
-        cv2.imshow('img', img)
-        cv2.waitKey(0)
+    #    img = plot.render_origin_frame(img, corners, rvecs, tvecs, mtx, dist)
+    #    cv2.imshow('img', img)
+    #    cv2.waitKey(0)
 
-    cv2.imshow('nadir', cal.get_nadir(cam.get_img(rectify=True), cam.calibrationParams['mtx']))
-    cv2.waitKey(0)
-    exit(0)
+    #cv2.imshow('nadir', cal.get_nadir(cam.get_img(rectify=True), cam.calibrationParams['mtx']))
+    #cv2.waitKey(0)
+    #exit(0)
     #cam.calibrate_lens()
     #cam.record_video('/home/mars/Videos/nightrider_local.avi')
 
     while True:
-        img = calibrate.get_nadir(cam.get_img(rectify=True))
-
+        #img = calibrate.get_nadir(cam.get_img(rectify=True))
+        img = cam.get_img(rectify=True)
         # Extract elements by colour
         env.boardMask, sidesMask, topsMask, env.sides, env.tops = filter.get_elements(img.copy(),
                                                                  cam.get_object_hues(),
                                                                  cam.rectifyMask,
                                                                  bThresh, hThresh, sThresh, vThresh)
 
-        #env.sh
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-        gray = np.float32(gray)
-        dst = cv2.cornerHarris(gray, 2, 3, 0.04)
-
-        # result is dilated for marking the corners, not important
-        dst = cv2.dilate(dst, None)
-
-        # Threshold for an optimal value, it may vary depending on the image.
-        img[dst > 0.01 * dst.max()] = [0, 0, 255]
 
         #env.boardMask = env.boardMask & filter.remove_components(
         #    cv2.dilate(env.boardMask, np.ones((15, 15), np.uint8), iterations=3), largest=True)
 
         env.get_board_corners()
-        for point in env.boardCorners:
-            cv2.circle(img, point, 15, [0, 255, 0])
+        if env.boardCorners is not None:
+            for point in env.boardCorners:
+                cv2.circle(img, point, 4, [0, 0, 255], 3)
+        #cv2.circle(img, testStart, 10, [255, 0, 0])
+        #cv2.circle(img, testEnd, 10, [255, 0, 0])
 
-        cv2.circle(img, testStart, 10, [255, 0, 0])
-        cv2.circle(img, testEnd, 10, [255, 0, 0])
+        # Fill gaps in board
+        #env.fill_board()
 
+        # Get board corners
+        #env.get_board_corners(np.float32(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)))
+        #filter.get_box(filter.get_edges(env.boardFilled), img)
         canvas = plot.show_mask(plot.show_mask(img, env.boardMask, 2), topsMask, 1)
+        cv2.line(canvas, blockout[0], blockout[1], [0, 255, 0], 3)
+        cv2.line(canvas, blockout[2], blockout[3], [0, 255, 0], 3)
 
         if pathing:
             canvas = env.four_point_transform(canvas)

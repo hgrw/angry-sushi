@@ -99,6 +99,32 @@ def get_elements(image, hues, rectifyMask, bThresh, hThresh, sThresh, vThresh):
     return cv2.morphologyEx(boardMask, cv2.MORPH_CLOSE, np.ones((8, 8), np.uint8)), sideMasks, topMasks, tops, shapes
 
 
+def get_box(edges, image):
+    lines = cv2.HoughLines(edges, 1, np.pi / 180, 180)
+
+    if lines is not None:
+        if len(lines) == 4:
+            for line in lines:
+                for rho, theta in line:
+                    a = np.cos(theta)
+                    b = np.sin(theta)
+                    x0 = a * rho
+                    y0 = b * rho
+                    x1 = int(x0 + 2000 * (-b))
+                    y1 = int(y0 + 2000 * (a))
+                    x2 = int(x0 - 2000 * (-b))
+                    y2 = int(y0 - 2000 * (a))
+
+                    cv2.line(image, (x1, y1), (x2, y2), (0, 0, 255), 2)
+        #cv2.imshow('lines', image)
+
+
+def get_edges(image):
+
+    (mu, sigma) = cv2.meanStdDev(image)
+    return cv2.Canny(cv2.medianBlur(image, 9), mu - sigma, mu + sigma, 20, L2gradient=True)
+
+
 def infill_components(image):
     #cv2.imshow('image', image)
     #cv2.waitKey(0)
