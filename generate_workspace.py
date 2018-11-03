@@ -75,18 +75,15 @@ def main():
     #cam.record_video('/home/mars/Videos/nightrider_local.avi')
 
     while True:
-        #img = calibrate.get_nadir(cam.get_img(rectify=True))
-        img = cam.get_img(rectify=True)
+        # Get rectified image from camera
+        img = cam.get_img(rectify=True, blur=True)
+
         # Extract elements by colour
         env.boardMask, sidesMask, topsMask, env.sides, env.tops = filter.get_elements(img.copy(),
                                                                  cam.get_object_hues(),
                                                                  cam.rectifyMask,
                                                                  bThresh, hThresh, sThresh, vThresh)
-
-
-        #env.boardMask = env.boardMask & filter.remove_components(
-        #    cv2.dilate(env.boardMask, np.ones((15, 15), np.uint8), iterations=3), largest=True)
-
+        # Get board corners
         env.get_board_corners()
         if len(env.boardCorners) is 4:
 
@@ -94,33 +91,25 @@ def main():
             for point in env.boardCorners:
                 cv2.circle(img, point, 4, [0, 0, 255], 3)
 
-            # Get camera intrinsics
-            mtx = np.asarray(cam.calibrationParams['mtx'], dtype=np.float32)
-            dist = np.asarray(cam.calibrationParams['dist'][0], dtype=np.float32)
+            # Use corners to calculate camera extrinsics relative to workspace. Plot origin over image
+            img = env.get_workspace_frame(img,
+                                          np.asarray(cam.calibrationParams['mtx'], dtype=np.float32),
+                                          np.asarray(cam.calibrationParams['dist'][0], dtype=np.float32))
 
-            # Workspace corners in workspace frame [0, 1]
-            objp = np.zeros((4, 3), np.float32)
-            objp[:, :2] = np.mgrid[0:2, 0:2].T.reshape(-1, 2)
 
-            # SolvePnPRansac wants a very specific matrix dimension for corners. Manipulate corner matrix to conform.
-            # Specifically, it is expecting a square with same dimensions as checkerboard square. Since we know board
-            # dimensions, we can generate such a square on which our origin lays. Then it must be manipulated so that
-            # it conforms to the pedantic cv2 specification. To be fair, it because cv2 is so well optimised.
-            env.wsOrigin = cal.generate_origin_square(env.boardCorners)
-            numpyCorners = np.expand_dims(np.asarray([np.asarray(cnr, dtype=np.float32).T for cnr in env.wsOrigin]),
-                                          axis=1)
+        # Plot shape tops, board bask and blockout zones on image
+        canvas = plot.show_mask(plot.show_mask(img, env.boardMask, 2), topsMask, 1)
+        cv2.line(canvas, blockout[0], blockout[1], [0, 255, 0], 3)
+        cv2.line(canvas, blockout[2], blockout[3], [0, 255, 0], 3)
 
-            # Plot corners for workspace origin square
-            for point in env.wsOrigin:
-                cv2.circle(img, (int(point[0]), int(point[1])), 4, [255, 0, 0], 3)
+        # Generate topdown view of workspace
+        topDown = env.get_top_down(canvas)
 
-            # Generate rotation and translation vectors for calibration target
-            _, rvecs, tvecs, inliers = cv2.solvePnPRansac(objp, numpyCorners, mtx, dist)
 
-            try:
-                img = plot.render_origin_frame(img, numpyCorners, rvecs, tvecs, mtx, dist)
-            except OverflowError:
-                print('No line to draw')
+        # Plot corners for workspace origin frame
+        #for point in env.wsOrigin:
+        #    cv2.circle(img, (int(point[0]), int(point[1])), 4, [255, 0, 0], 3)
+
         #cv2.circle(img, testStart, 10, [255, 0, 0])
         #cv2.circle(img, testEnd, 10, [255, 0, 0])
 
@@ -131,10 +120,6 @@ def main():
         #env.get_board_corners(np.float32(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)))
         #filter.get_box(filter.get_edges(env.boardFilled), img)
 
-        # Plot shape tops, board bask and blockout zones on image
-        canvas = plot.show_mask(plot.show_mask(img, env.boardMask, 2), topsMask, 1)
-        cv2.line(canvas, blockout[0], blockout[1], [0, 255, 0], 3)
-        cv2.line(canvas, blockout[2], blockout[3], [0, 255, 0], 3)
 
         if pathing:
             canvas = env.four_point_transform(canvas)
@@ -153,7 +138,7 @@ def main():
 
         #img = filter.remove_components()
         #cv2.imshow("Contours", plot.view_pair(env.boardMask, env.shapeMask))
-        cv2.imshow("Contours", canvas)
+        cv2.imshow("Contours", topDown)
 
         k = cv2.waitKey(1)
         if k == 115:    # Esc key to stop
@@ -162,7 +147,6 @@ def main():
     exit(0)
 
     # Generate top-down view of image set
-    cal.generate_overhead(cam, 200)
 
 
 if __name__ == "__main__":

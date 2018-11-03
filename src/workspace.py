@@ -2,6 +2,8 @@ import numpy as np
 import imutils
 import math
 import src.math_tools as utils
+import src.calibration as cal
+import src.plot_tools as plot
 import cv2
 from scipy.spatial import distance as dist
 import src.filter_tools as filter
@@ -14,7 +16,40 @@ class Environment(object):
         self.tops = None
         self.sides = None
         self.wsOrigin = None
+        self.rvecs = None
+        self.tvecs = None
+        self.mtx = None
+        self.dist = None
+        self.longEdgeMm = 420
+        self.shortEdgeMm = 280
 
+
+    def get_workspace_frame(self, img, mtx, dist):
+
+        # Workspace corners in workspace frame [0, 1]
+        objp = np.zeros((4, 3), np.float32)
+        objp[:, :2] = np.mgrid[0:2, 0:2].T.reshape(-1, 2)
+
+        # SolvePnPRansac wants a very specific matrix dimension for corners. Manipulate corner matrix to conform.
+        # Specifically, it is expecting a square with same dimensions as checkerboard square. Since we know board
+        # dimensions, we can generate such a square on which our origin lays. Then it must be manipulated so that
+        # it conforms to the pedantic cv2 specification. To be fair, it because cv2 is so well optimised.
+        self.wsOrigin = cal.generate_origin_square(self.boardCorners)
+        numpyCorners = np.expand_dims(np.asarray([np.asarray(cnr, dtype=np.float32).T for cnr in self.wsOrigin]),
+                                      axis=1)
+
+        # Generate rotation and translation vectors for calibration target
+        _, rvecs, tvecs, inliers = cv2.solvePnPRansac(objp, numpyCorners, mtx, dist)
+
+        try:
+            img = plot.render_origin_frame(img, numpyCorners, rvecs, tvecs, mtx, dist)
+            self.rvecs = rvecs
+            self.tvecs = tvecs
+            self.mtx = mtx
+            self.dist = dist
+        except OverflowError:
+            print('No line to draw')
+        return img
     def fill_board(self):
 
         # Prepare filled image of board (i.e. fill shape gaps). Don't overwrite board.
@@ -82,22 +117,16 @@ class Environment(object):
         except IndexError:
            print('Not enough board pixels to get corners')
 
-    def four_point_transform(self, image):
+    def get_top_down(self, image):
 
-        corners = [self.boardCorners[0], self.boardCorners[2], self.boardCorners[1], self.boardCorners[3]]
-
-        width = 594     # 2 X 297mm (a4 page width)
-        height = 420    # 2 X 210mm (a4 page height)
-
+        # Instantiate distortion kernel
         dst = np.array([
             [0, 0],
-            [594 - 1, 0],
-            [594 - 1, 420 - 1],
-            [0, 420 - 1]], dtype="float32")
+            [self.longEdgeMm * 2 - 1, 0],
+            [self.longEdgeMm * 2 - 1, self.shortEdgeMm * 2 - 1],
+            [0, self.shortEdgeMm * 2 - 1]], dtype="float32")
 
         # compute the perspective transform matrix and then apply it
-        M = cv2.getPerspectiveTransform(np.array(corners, np.float32), dst)
-        warped = cv2.warpPerspective(image, M, (width, height))
+        M = cv2.getPerspectiveTransform(np.array(self.boardCorners, np.float32), dst)
 
-        # return the warped image
-        return warped
+        return cv2.warpPerspective(image, M, (self.longEdgeMm * 2, self.shortEdgeMm * 2))

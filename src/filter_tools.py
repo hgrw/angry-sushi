@@ -80,11 +80,11 @@ def get_elements(image, hues, rectifyMask, bThresh, hThresh, sThresh, vThresh):
                                max(hue[1] + sThresh, 255),
                                max(hue[2] + vThresh, 255)))
         shapeMask = cv2.inRange(hsv,
-                                (max(hue[0] - int(1.2 * hThresh), 0), 40, 40),
-                                (min(hue[0] + int(1.2 * hThresh), 180), 255, 255))
+                                (max(hue[0] - int(1.0 * hThresh), 0), 50, 50),
+                                (min(hue[0] + int(1.0 * hThresh), 180), 255, 255))
         boardMask = boardMask | cv2.inRange(hsv, (0, 0, 0), (180, bThresh, bThresh)) & ~rectifyMask
-        sideMasks = sideMasks | shapeMask
         topMasks = topMasks | topMask
+        sideMasks = (sideMasks | shapeMask) & ~topMasks & ~boardMask
 
         tops.append(cv2.morphologyEx(remove_components(topMask, minSize=10000),
                                      cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8)))

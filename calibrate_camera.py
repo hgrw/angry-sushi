@@ -76,7 +76,7 @@ def main():
     cal.calibrate_camera(cam, targetDimensions)
 
     # Set origin, passing in checkerboard dimensions and shape of rectified image
-    cam.set_origin(targetDimensions)
+    #cam.set_origin(targetDimensions)
 
     # Show blockout regions for aligning workspace
     cal.align_tilt(cam, blockout)
@@ -90,9 +90,9 @@ def main():
     calibrating = True
     cam.calibrationParams['yellow'], hueLocs = generate_baselines(cam, hueLocs, "SELECT YELLOW TOPS")
     calibrating = True
+    cam.calibrationParams['white'], hueLocs = generate_baselines(cam, hueLocs, "SELECT GOAL MARKER AND CARD FRONTS")
+    calibrating = True
     cam.calibrationParams['purple'], hueLocs = generate_baselines(cam, hueLocs, "SELECT CARD BACKS")
-
-    # Print camera calibration matrix, intrinsics, extrinsics
 
     #cam.stream(rectify=True)
 
