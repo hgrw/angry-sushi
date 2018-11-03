@@ -10,9 +10,10 @@ class Environment(object):
     def __init__(self):
         self.boardMask = None
         self.boardFilled = None
-        self.boardCorners = None
+        self.boardCorners = []
         self.tops = None
         self.sides = None
+        self.wsOrigin = None
 
     def fill_board(self):
 
@@ -62,8 +63,6 @@ class Environment(object):
         #cv2.imshow('corners', corners)
         rotated = utils.rotate_image(self.boardMask)
         h, w = rotated.shape
-        print((h, w), self.boardMask.shape)
-        cv2.imshow('original', self.boardMask)
 
         try:
             t, b = np.array(np.where(rotated == 255))[:, [0, -1]].T
@@ -76,6 +75,9 @@ class Environment(object):
                                math.atan2(1023.0 - cnr[1], 1279.0 - cnr[0]) - math.pi / 4) for cnr in rotatedCorners]
             self.boardCorners = [(640 + int(vect[0] * math.sin(vect[1])),
                                   512 - int(vect[0] * math.cos(vect[1]))) for vect in unrotatedVectors]
+
+            self.boardCorners = [self.boardCorners[3], self.boardCorners[0], self.boardCorners[2], self.boardCorners[1]]
+
 
         except IndexError:
            print('Not enough board pixels to get corners')

@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import math
 import src.plot_tools as plot
 
 
@@ -38,6 +39,52 @@ def get_points(image, dimms):
     if data.try_approximate_corners(dimms):
         data.render_points(image, dimms)               # Render points
         return data
+
+
+def generate_origin_square(corners):
+
+    """
+    Generating the origin square will give us the rotation and translation matrices to convert image coordinates into
+    world coordinates on the workspace. These matrices are saved in the .mat file to be used in kinematics routines
+    by other team members.
+
+    Workspace dimensions: 419mm X 279.5mm
+    Checkerboard square dimensions: 36mm X 36mm
+
+    fraction along long edge:   11.64 squares
+    fraction along short edge:  7.76 squares
+
+    :param corners: Python list of corners, arranged as follows: [top-left, top-right, bottom-right, bottom-left]
+    :return: Numpy array of corners suitable for solvePnPRansac function. Virtual chessboard square for extrinsics!
+    Note that the order of points returned is not the order given as input. This is to satisfy solvePnPRansac
+
+    NOTE: The construction of the virtual square makes the assumption that camera perspective is an affine transform.
+    **THIS IS FALSE**. However, since the square is small, the error would be a few pixels and hopefully not
+    too bad.
+    """
+    longEdgeFraction = 11.64
+    shortEdgeFraction = 7.76
+
+    # Get board dimensions in camera frame (pixels and radians)
+    topEdge = math.hypot(corners[1][0] - corners[0][0], corners[1][1] - corners[0][1])
+    topAngle = math.atan2(corners[1][1] - corners[0][1], corners[1][0] - corners[0][0])
+    leftEdge = math.hypot(corners[3][0] - corners[0][0], corners[3][1] - corners[0][1])
+    leftAngle = math.atan2(corners[3][1] - corners[0][1], corners[3][0] - corners[0][0])
+
+    # Get square dimensions in camera frame (pixels)
+    squareEdgeTopBottom = topEdge / longEdgeFraction
+    squareEdgeLeftRight = leftEdge / shortEdgeFraction
+
+    # Project square edges into camera frame using top left board corner
+    pt1 = (corners[0][0] + squareEdgeTopBottom * math.cos(topAngle),
+           corners[0][1] + squareEdgeTopBottom * math.sin(topAngle))
+    pt3 = (corners[0][0] + squareEdgeLeftRight * math.cos(leftAngle),
+           corners[0][1] + squareEdgeLeftRight * math.sin(leftAngle))
+
+    # Project square edge not connected to top left board corner by extending from bottom left origin-square corner
+    pt2 = (pt3[0] + squareEdgeTopBottom * math.cos(topAngle), pt3[1] + squareEdgeTopBottom * math.sin(topAngle))
+
+    return [corners[0], pt1, pt3, pt2]
 
 
 def align_tilt(cam, blockout):
