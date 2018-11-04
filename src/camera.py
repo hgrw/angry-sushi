@@ -200,8 +200,8 @@ class Camera(object):
             hues.append(np.mean(self.calibrationParams['blue'], axis=0).astype(np.uint8))
         if len(self.calibrationParams['yellow']) > 1:
             hues.append(np.mean(self.calibrationParams['yellow'], axis=0).astype(np.uint8))
-        if len(self.calibrationParams['white']) > 1:
-            hues.append(np.mean(self.calibrationParams['white'], axis=0).astype(np.uint8))
+        #if len(self.calibrationParams['white']) > 1:
+        #    hues.append(np.mean(self.calibrationParams['white'], axis=0).astype(np.uint8))
         if len(self.calibrationParams['purple']) > 1:
             hues.append(np.mean(self.calibrationParams['purple'], axis=0).astype(np.uint8))
         return hues

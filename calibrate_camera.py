@@ -90,8 +90,8 @@ def main():
     calibrating = True
     cam.calibrationParams['yellow'], hueLocs = generate_baselines(cam, hueLocs, "SELECT YELLOW TOPS")
     calibrating = True
-    cam.calibrationParams['white'], hueLocs = generate_baselines(cam, hueLocs, "SELECT GOAL MARKER AND CARD FRONTS")
-    calibrating = True
+    #cam.calibrationParams['white'], hueLocs = generate_baselines(cam, hueLocs, "SELECT GOAL MARKER AND CARD FRONTS")
+    #calibrating = True
     cam.calibrationParams['purple'], hueLocs = generate_baselines(cam, hueLocs, "SELECT CARD BACKS")
 
     #cam.stream(rectify=True)

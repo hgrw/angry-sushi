@@ -11,10 +11,11 @@ import src.filter_tools as filter
 class Environment(object):
     def __init__(self):
         self.boardMask = None
-        self.boardFilled = None
-        self.boardCorners = []
+        self.boardMaskFilled = None
         self.tops = None
         self.sides = None
+        self.goals = None
+        self.boardCorners = []
         self.wsOrigin = None
         self.rvecs = None
         self.tvecs = None
@@ -23,6 +24,52 @@ class Environment(object):
         self.longEdgeMm = 420
         self.shortEdgeMm = 280
 
+    def update_masks(self):
+
+        # Draw polygon between workspace corners
+        mask = np.zeros((1024, 1280), dtype=np.uint8)
+        pts = np.array(self.boardCorners, np.int32)
+        pts = pts.reshape((-1, 1, 2))
+        self.boardMaskFilled = cv2.fillPoly(mask, [pts], 255)
+
+        # Close masks and remove small objects
+        self.tops = filter.remove_components(cv2.morphologyEx(self.tops, cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8)),
+                                             minSize=2500)
+        self.sides = filter.remove_components(cv2.morphologyEx(self.sides, cv2.MORPH_CLOSE, np.ones((6, 6), np.uint8)),
+                                              minSize=10000)
+
+        # Clean up masks by removing intersections
+        self.sides = (self.sides & ~self.tops) & self.boardMaskFilled
+        self.tops = (self.tops & ~ self.sides) & self.boardMaskFilled
+
+    def get_workspace_objects(self, image, hues, rectifyMask, bThresh, wThresh, hThresh, sThresh, vThresh):
+        image = cv2.bilateralFilter(image, 9, 40, 40)
+        gray = ~cv2.cvtColor(filter.get_clahe(image), cv2.COLOR_BGR2GRAY) & ~rectifyMask
+        hsv = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2HSV)
+        self.tops = np.zeros((1024, 1280), dtype=np.uint8)
+        self.sides = np.zeros((1024, 1280), dtype=np.uint8)
+
+        for hue in hues:
+            # Add object tops for each hue to combined tops mask
+            self.tops = self.tops | cv2.inRange(hsv,
+                                                (max(hue[0] - hThresh, 0),
+                                                 max(hue[1] - sThresh, 0),
+                                                 max(hue[2] - vThresh, 0)),
+                                                (min(hue[0] + hThresh, 180),
+                                                 max(hue[1] + sThresh, 255),
+                                                 max(hue[2] + vThresh, 255)))
+
+            # Add entirety of coloured prisms and cards
+            self.sides = self.sides | cv2.inRange(hsv,
+                                                  (max(hue[0] - int(1.0 * hThresh), 0), 50, 50),
+                                                  (min(hue[0] + int(1.0 * hThresh), 180), 255, 255))
+
+        # Segment board from image
+        self.boardMask = (cv2.inRange(hsv, (0, 0, 0), (180, bThresh, bThresh)) |
+                          np.asarray((gray > 220) * 255, dtype=np.uint8)) & ~rectifyMask
+
+        # Segment goal objects from image
+        self.goals = np.asarray((gray < wThresh) * 255, dtype=np.uint8) & ~rectifyMask & ~self.tops
 
     def get_workspace_frame(self, img, mtx, dist):
 
@@ -50,6 +97,7 @@ class Environment(object):
         except OverflowError:
             print('No line to draw')
         return img
+
     def fill_board(self):
 
         # Prepare filled image of board (i.e. fill shape gaps). Don't overwrite board.
@@ -67,35 +115,6 @@ class Environment(object):
 
     def get_board_corners(self):
 
-        # Remove shape holes from board surface
-        #self.fill_board()
-
-        # Morphology kernel
-        #kernel = np.ones((5, 5), np.uint8)
-
-        # Canvas to store corners
-        #corners = np.zeros(self.boardMask.shape, np.uint8)
-
-        # Find Harris corners
-        #dst = cv2.cornerHarris(gray, 4, 1, 0.01)
-
-        # result is dilated for marking the corners, not important
-        #dst = cv2.dilate(dst, None)
-
-        # Threshold for an optimal value, it may vary depending on the image.
-        #corners[dst > 0.01 * dst.max()] = 255
-
-        # Remove corners not on edge of board
-        #corners = cv2.dilate(corners & cv2.dilate(cv2.morphologyEx(self.boardFilled,
-        #                                                           cv2.MORPH_GRADIENT,
-        #                                                           kernel,
-        #                                                           iterations=2), kernel), kernel)
-
-        #numComponents, output, stats, centroids = cv2.connectedComponentsWithStats(corners, connectivity=8)
-
-
-        #cv2.imshow('board', self.boardFilled)
-        #cv2.imshow('corners', corners)
         rotated = utils.rotate_image(self.boardMask)
         h, w = rotated.shape
 
