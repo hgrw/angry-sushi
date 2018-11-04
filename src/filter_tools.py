@@ -99,6 +99,16 @@ def get_elements(image, hues, rectifyMask, bThresh, hThresh, sThresh, vThresh):
     return cv2.morphologyEx(boardMask, cv2.MORPH_CLOSE, np.ones((8, 8), np.uint8)), sideMasks, topMasks, tops, shapes
 
 
+def get_circle(mask, minRad, maxRad):
+    circles = cv2.HoughCircles(mask, cv2.HOUGH_GRADIENT, 1, 20, param1=50, param2=10, minRadius=minRad, maxRadius=maxRad)
+    if circles is not None:
+        circles = np.uint16(np.around(circles))
+        for i in circles[0, :]:
+            if mask[i[1], i[0]] == 255:
+                # Probably this is a valid circle
+                print('Circle found ', i)
+                return i
+
 def get_box(edges, image):
     lines = cv2.HoughLines(edges, 1, np.pi / 180, 180)
 
@@ -158,6 +168,22 @@ def color_mask(img, thresh, binary=False):
 
     return cv2.bitwise_and(img, img, mask=mask)
 
+def separate_components(mask):
+
+    # Output list to populate
+    components = []
+
+    # find all connected components
+    num, output, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
+
+    # Store connected components separately
+    for i in range(1, num):
+
+        out = np.zeros(mask.shape, dtype=np.uint8)
+        out[output == i] = 255
+        components.append([out, centroids[i]])
+
+    return components
 
 def remove_components(image, largest=None, minSize=None, minWidth=None):
 

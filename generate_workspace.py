@@ -14,8 +14,6 @@ from src.camera import Camera
 from src.workspace import Environment
 
 
-
-
 def main():
 
     # Calibration parameters
@@ -36,9 +34,12 @@ def main():
                 (200, 960),
                 (1080, 960)]
 
+    cameraPosition = (130, 130) # Vector pointing from workspace origin to camera in top-down rectified frame. Used to
+                                # translate foam object tops along line from top centroid towards camera lense and in
+                                # so doing, find the bottom for each foam object
+
     # Get image from camera
     cam = Camera(targetDimensions, exposure)
-    env = Environment()
 
     # Load camera parameters
     jsonFile = os.path.join(os.path.dirname(__file__), 'cameraData_AEV.json')
@@ -49,56 +50,57 @@ def main():
         cam.get_rectify_mask(blockout)
 
     #cam.calibrate_lens()
-    #cam.record_video('/home/mars/Videos/nightrider_local.avi')
 
+    # Enter program loop. Breaks only when valid path found
     while True:
+
         # Get rectified image from camera
         img = cam.get_img(rectify=True, blur=True)
 
-        # Canvas to plot computer vision and pathing output for visualisation
-        canvas = img.copy()
+        # Instantiate environment object
+        env = Environment(img.copy(), blockout)
 
-        # Extract board, shapes and tops
-        #env.boardMask, sidesMask, topsMask, env.sides, env.tops = filter.get_elements(canvas,
-        #                                                         cam.get_object_hues(),
-        #                                                         cam.rectifyMask,
-        #                                                         bThresh, hThresh, sThresh, vThresh)
+        # Get workspace objects: blocks faces (tops and sides), cards and goal circle
+        env.get_ws_objects(img, cam.get_object_hues(), cam.rectifyMask, bThresh, wThresh, hThresh, sThresh, vThresh)
 
-        env.get_workspace_objects(img, cam.get_object_hues(), cam.rectifyMask,
-                                  bThresh,
-                                  wThresh,
-                                  hThresh,
-                                  sThresh,
-                                  vThresh)
+        # Get board corners. If corners aren't found, restart loop
+        if not env.get_board_corners():
+            continue
 
-        #bw = plot.show_mask(plot.show_mask(img, blacks, 2), whites, 1)
+        # Use corners to calculate camera extrinsics relative to workspace. Plot origin over image
+        env.get_ws_frame(np.asarray(cam.calibrationParams['mtx'], dtype=np.float32),
+                         np.asarray(cam.calibrationParams['dist'][0], dtype=np.float32))
 
-        # Get board corners
-        env.get_board_corners()
-        if len(env.boardCorners) is 4:
+        # Delete objects that are detected outside the workspace perimeter
+        env.update_masks()
 
-            # Plot corners
-            for point in env.boardCorners:
-                cv2.circle(canvas, point, 4, [0, 0, 255], 3)
+        # Convert objects to top down view
+        env.get_top_down()
 
-            # Use corners to calculate camera extrinsics relative to workspace. Plot origin over image
-            canvas = env.get_workspace_frame(canvas,
-                                             np.asarray(cam.calibrationParams['mtx'], dtype=np.float32),
-                                             np.asarray(cam.calibrationParams['dist'][0], dtype=np.float32))
+        # Convert non-flat objects in workspace to prisms
+        env.get_prisms()
 
-            # Using the workspace corners, a filled workspace mask can be generated and then used to update masks to
-            # improve accuracy
-            env.update_masks()
+        # Invoke the prism base finding method for each prism. Produces junk array (_) as a byproduct. Disregard.
+        _ = [prism.bootstrap_base(cameraPosition) for prism in env.prisms]
 
+        # Use prism bottoms to update filled workspace
+        workspace = env.generate_workspace()
 
-        # Plot shape tops, board bask and blockout zones on image
-        canvas = plot.show_mask(plot.show_mask(plot.show_mask(canvas, env.boardMask, 2), env.sides, 1), env.tops, 0)
-        cv2.line(canvas, blockout[0], blockout[1], [0, 255, 0], 3)
-        cv2.line(canvas, blockout[2], blockout[3], [0, 255, 0], 3)
+        # Un-extrude tops. We can do this by translating each top along a line pointing back to camera in overhead view
+        # and taking the point along the line that has the most pixels where the top intersect the edge.
 
-        # Generate topdown view of workspace
-        topDown = env.get_top_down(canvas)
+        # Detect start and end points for trajectories
+        #env.get_start_and_end_points()
 
+        # Enter path generation mode
+        if pathing:
+            path = tree.generate_path(env.boardMask, testStart, testEnd, pathStep)
+            if path is not None:
+                env.canvasTd = plot.plot_path(env.canvas, path)
+            cv2.imshow("canvas", env.canvasTd)
+        else:
+            #cv2.imshow("canvas", env.canvas)
+            cv2.imshow("canvas", plot.show_mask(env.canvasTd, workspace, 2))
 
         # Plot corners for workspace origin frame
         #for point in env.wsOrigin:
@@ -115,11 +117,6 @@ def main():
         #filter.get_box(filter.get_edges(env.boardFilled), img)
 
 
-        if pathing:
-            canvas = env.get_top_down(canvas)
-            path = tree.generate_path(env.boardMask, testStart, testEnd, pathStep)
-            if path is not None:
-                canvas = plot.plot_path(canvas, path)
         # Create a
         #env.shapeMask = filter.get_shapes(img, env.worldMask ^ env.boardMask)
         #board = shapes ^ ~env.boardMask
@@ -132,9 +129,11 @@ def main():
 
         #img = filter.remove_components()
         #cv2.imshow("Contours", plot.view_pair(env.boardMask, env.shapeMask))
-        cv2.imshow("Contours", canvas)
         #cv2.imshow("bw", ~cv2.cvtColor(cam.get_img(rectify=True), cv2.COLOR_BGR2GRAY) & ~cam.rectifyMask)
 
+        # Remove shapes and top-side pairs array
+        env.shapes = []
+        env.topSidePairs = []
         k = cv2.waitKey(1)
         if k == 115:    # Esc key to stop
             print("PATHING MODE ENGAGED")
