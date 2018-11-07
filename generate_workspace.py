@@ -90,13 +90,14 @@ def main():
         #env.get_start_and_end_points()
 
         # Enter path generation mode
-        if pathing:
-            path = tree.generate_path(env.boardMask, testStart, testEnd, pathStep)
+        #print('lk')
+
+        if (env.start is not None) and (env.goal is not None):
+            path = tree.generate_path(env.boardMask, env.start, env.goal, pathStep)
             if path is not None:
                 env.canvasTd = plot.plot_path(env.canvas, path)
             cv2.imshow("canvas", env.canvasTd)
         else:
-            #print('ok')
             #cv2.imshow("canvas", plot.show_mask(plot.show_mask(plot.show_mask(env.canvas, env.boardMask, 2), env.sides, 1), env.tops, 0))
             cv2.imshow("canvas", plot.show_mask(env.canvas, workspace, 2))
 
@@ -130,12 +131,9 @@ def main():
         #cv2.imshow("bw", ~cv2.cvtColor(cam.get_img(rectify=True), cv2.COLOR_BGR2GRAY) & ~cam.rectifyMask)
 
         # Remove shapes and top-side pairs array
+        cv2.waitKey(1)
         env.shapes = []
         env.topSidePairs = []
-        k = cv2.waitKey(1)
-        if k == 115:    # Esc key to stop
-            print("PATHING MODE ENGAGED")
-            pathing = True
     exit(0)
 
     # Generate top-down view of image set

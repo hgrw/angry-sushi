@@ -97,8 +97,6 @@ class Environment(object):
         self.tvecs = None               # Translation matrix between workspace and camera
         self.mtx = None                 # Camera matrix
         self.dist = None                # Camera distortion coefficients
-        #self.longEdgeMm = 420           # Long edge of workspace in mm
-        #self.shortEdgeMm = 280          # Short edge of workspace in mm
 
         # Path planning and goal data
         self.start = None
@@ -106,12 +104,12 @@ class Environment(object):
 
     def generate_workspace(self):
 
-        mask = self.boardMask.copy()
+        mask = self.boardMaskFilled.copy()
 
         for prism in self.prisms:
             mask = (mask | prism.top | prism.side) & ~prism.bottom
 
-        return mask
+        return mask & ~self.cards
 
     def get_prisms(self):
 
@@ -119,9 +117,6 @@ class Environment(object):
 
         # Generate top-side pairs for each top.
         for [top, side] in self.shapes:
-            #cv2.imshow('top', top)
-            #cv2.imshow('side', side)
-            #cv2.waitKey(0)
             tops = filter.separate_components(top)
             sides = filter.separate_components(side)
 
@@ -152,6 +147,7 @@ class Environment(object):
         image = cv2.bilateralFilter(image, 9, 40, 40)
         gray = ~cv2.cvtColor(filter.get_clahe(image), cv2.COLOR_BGR2GRAY)
         hsv = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2HSV)
+        kernel = np.ones((5, 5), np.uint8)
         self.tops = np.zeros(gray.shape, dtype=np.uint8)
         self.sides = np.zeros(gray.shape, dtype=np.uint8)
 
@@ -176,9 +172,22 @@ class Environment(object):
             self.sides = self.sides | side
             self.shapes.append([top, side])
 
-        # Get card backs (only purple coloured objects!) and fill in the black circles
+        # Segment goal objects from image
+        self.goals = cv2.morphologyEx(np.asarray((gray < wThresh) * 255, dtype=np.uint8) & ~self.tops, cv2.MORPH_CLOSE,
+                                      kernel, iterations=2)
+
+        # Get card backs (purple colour)
         self.cards = cv2.dilate(filter.infill_components(self.shapes[-1][0] | self.shapes[-1][1])
-                                | self.shapes[-1][0] | self.shapes[-1][1], np.ones((5, 5), np.uint8))
+                                | self.shapes[-1][0] | self.shapes[-1][1], kernel)
+
+        # Get card fronts (white colour)
+        self.cards = self.cards | cv2.dilate(filter.remove_components(
+            cv2.dilate(filter.infill_components(cv2.dilate(
+                self.goals.copy(), kernel, iterations=2)), kernel, iterations=6) | self.goals, minSize=10000), kernel,
+            iterations=3)
+
+        # Update goals to remove white card faces and small sections of goal
+        self.goals = filter.remove_components(self.goals & ~self.cards, minSize=2500)
 
         # Delete cards from shapes. We only want '3d' objects in this list
         del self.shapes[-1]
@@ -190,9 +199,6 @@ class Environment(object):
         # Close board mask
         self.boardMask = cv2.morphologyEx(self.boardMask, cv2.MORPH_CLOSE, np.ones((10, 10), np.uint8))
 
-        # Segment goal objects from image
-        self.goals = np.asarray((gray < wThresh) * 255, dtype=np.uint8) & ~self.tops
-
     def update_masks(self):
 
         # Instantiate morphology kernel
@@ -203,9 +209,10 @@ class Environment(object):
         self.boardMaskFilled = cv2.fillPoly(np.zeros(self.boardMask.shape, dtype=np.uint8), [pts], 255)
 
         # Close masks and remove small objects
-        self.tops = filter.remove_components(cv2.morphologyEx(self.tops, cv2.MORPH_CLOSE, kernel), minSize=2000) & ~self.cards
-        self.sides = filter.remove_components(cv2.morphologyEx(self.sides, cv2.MORPH_CLOSE, kernel), minSize=2500) & ~self.cards
-        self.cards = filter.remove_components(cv2.morphologyEx(self.cards, cv2.MORPH_CLOSE, kernel), minSize=2500)
+        self.tops = filter.remove_components(cv2.morphologyEx(self.tops, cv2.MORPH_CLOSE, kernel), minSize=2000) & \
+                    ~self.cards
+        self.sides = filter.remove_components(cv2.morphologyEx(self.sides, cv2.MORPH_CLOSE, kernel), minSize=2500) & \
+                     ~self.cards
 
         # Clean up masks by removing intersections
         self.sides = ((self.sides & ~self.tops) & self.boardMaskFilled) & ~self.boardMask & ~self.cards
