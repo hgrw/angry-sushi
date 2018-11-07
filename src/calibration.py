@@ -87,13 +87,18 @@ def generate_origin_square(corners):
     return [corners[0], pt1, pt3, pt2]
 
 
-def align_tilt(cam, blockout):
+def align_tilt(cam, deadzone):
     print('ALIGN CAMERA TILT LINE WITH BOTTOM OF CAMERA MOUNT')
     while True:
-        img = cam.get_img(rectify=True)
-        cv2.line(img, blockout[0], blockout[1], [0, 255, 0], 3)
-        cv2.line(img, blockout[2], blockout[3], [0, 255, 0], 3)
-        cv2.imshow('img', img)
+        canvas = cam.get_img(rectify=True)
+
+        # Plot markers for positioning camera mount and manipulator mount
+        cv2.line(canvas, deadzone[0], deadzone[1], [0, 255, 0], 3)
+        cv2.line(canvas, deadzone[2], deadzone[3], [0, 255, 0], 3)
+        cv2.line(canvas, deadzone[4], deadzone[5], [0, 0, 255], 3)
+        cv2.line(canvas, deadzone[6], deadzone[7], [0, 0, 255], 3)
+        cv2.line(canvas, deadzone[8], deadzone[9], [0, 0, 255], 3)
+        cv2.imshow('img', canvas)
         k = cv2.waitKey(1)
         if k == 27:    # Esc key to stop
             break
@@ -125,9 +130,9 @@ def calibrate_camera(camera, dimms):
         = cv2.calibrateCamera(objPoints, imgPoints, shape[::-1], None, None)
 
     # Store 2d and 3d points on calibration target
-    camera.calibrationParams['objPoints'] = objPoints
-    camera.calibrationParams['imgPoints'] = imgPoints
-    camera.calibrationParams['imageSize'] = shape
+    #camera.calibrationParams['objPoints'] = objPoints
+    #camera.calibrationParams['imgPoints'] = imgPoints
+    #camera.calibrationParams['imageSize'] = shape
     print('Calibrated Camera')
 
 

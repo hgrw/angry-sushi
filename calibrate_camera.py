@@ -54,10 +54,15 @@ def main():
 
     # Calibration parameters
     targetDimensions = (6, 9)               # Calibration target dimensions in squares
-    exposure = 60000                        # Exposure (gain). Should be high to increase depth of field
+    exposure = 70000                        # Exposure (gain). Should be high to increase depth of field
     numTargets = 8                          # Number of calibration targets to collect
-    blockout = [(1140, 0), (1140, 1023),
-                (200, 960), (1080, 960)]    # Blockout region for bottom of camera mount and arm mount
+    blockout = [(1140, 36), (1140, 1000),   # Right border
+                (187, 860), (1140, 1000),   # Bottom border
+                (400, 892), (400, 932),     # Actuator mounting marker 1
+                (600, 920), (600, 960),     # Actuator mounting marker 2
+                (800, 950), (800, 990)]     # Actuator mounting marker 3
+
+    # Used in the mouse-click callback function
     global hueLocs, calibrating
 
     # Instantiate camera
@@ -90,8 +95,6 @@ def main():
     calibrating = True
     cam.calibrationParams['yellow'], hueLocs = generate_baselines(cam, hueLocs, "SELECT YELLOW TOPS")
     calibrating = True
-    #cam.calibrationParams['white'], hueLocs = generate_baselines(cam, hueLocs, "SELECT GOAL MARKER AND CARD FRONTS")
-    #calibrating = True
     cam.calibrationParams['purple'], hueLocs = generate_baselines(cam, hueLocs, "SELECT CARD BACKS")
 
     #cam.stream(rectify=True)

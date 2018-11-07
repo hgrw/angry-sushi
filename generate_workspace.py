@@ -18,7 +18,7 @@ def main():
 
     # Calibration parameters
     targetDimensions = (6, 9)   # Calibration board dimensions. Required to initialise camera object
-    exposure = 60000            # Exposure (gain). Should be kept high to increase depth of field
+    exposure = 50000            # Exposure (gain). Should be kept high to increase depth of field
     bThresh = 70                # Black threshold. Used to detect board
     wThresh = 65                # White theshold. Used to detect goal circle
     hThresh = 10                # Hue theshold. Used to segment coloured blocks
@@ -26,13 +26,14 @@ def main():
     vThresh = 10                # Value threshold. Used to segment coloured blocks
     testStart = (355, 355)
     testEnd = (677, 677)
-    pathStep = 0.075            # Pathfinding step size
+    pathStep = 0.15             # Pathfinding step size
     pathing = False             # Set to false while workspace generation completes. When true, pathfinding commences
 
-    blockout = [(1140, 0),      # Blockout region for bottom of camera mount and arm mount
-                (1140, 1023),
-                (200, 960),
-                (1080, 960)]
+    blockout = [(1140, 36), (1140, 1000),   # Right border
+                (187, 860), (1140, 1000),   # Bottom border
+                (400, 892), (400, 932),     # Actuator mounting marker 1
+                (600, 920), (600, 960),     # Actuator mounting marker 2
+                (800, 950), (800, 990)]     # Actuator mounting marker 3
 
     cameraPosition = (130, 130) # Vector pointing from workspace origin to camera in top-down rectified frame. Used to
                                 # translate foam object tops along line from top centroid towards camera lense and in
@@ -99,7 +100,7 @@ def main():
                 env.canvasTd = plot.plot_path(env.canvas, path)
             cv2.imshow("canvas", env.canvasTd)
         else:
-            #cv2.imshow("canvas", env.canvas)
+            #cv2.imshow("canvas", plot.show_mask(plot.show_mask(env.canvas, env.boardMask, 2), env.sides, 1))
             cv2.imshow("canvas", plot.show_mask(env.canvasTd, workspace, 2))
 
         # Plot corners for workspace origin frame

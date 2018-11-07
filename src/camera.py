@@ -170,7 +170,9 @@ class Camera(object):
 
         # Remove blockout regions from image
         self.rectifyMask[:, blockout[0][0]:] = 255  # Remove camera mount
-        self.rectifyMask[blockout[2][1]:, :] = 255  # Remove manipulator mount
+        pts = np.array([(1140, 1000), (1140, 1023), (0, 1023), (187, 860)], np.int32)
+        pts = pts.reshape((-1, 1, 2))
+        self.rectifyMask = self.rectifyMask & cv2.fillPoly(self.rectifyMask, [pts], 255)
 
     def record_video(self, output):
 
@@ -200,8 +202,6 @@ class Camera(object):
             hues.append(np.mean(self.calibrationParams['blue'], axis=0).astype(np.uint8))
         if len(self.calibrationParams['yellow']) > 1:
             hues.append(np.mean(self.calibrationParams['yellow'], axis=0).astype(np.uint8))
-        #if len(self.calibrationParams['white']) > 1:
-        #    hues.append(np.mean(self.calibrationParams['white'], axis=0).astype(np.uint8))
         if len(self.calibrationParams['purple']) > 1:
             hues.append(np.mean(self.calibrationParams['purple'], axis=0).astype(np.uint8))
         return hues

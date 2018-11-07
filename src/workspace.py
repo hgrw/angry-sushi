@@ -78,11 +78,14 @@ class Environment(object):
 
     def __init__(self, canvas, deadzone):
 
-        # Add deadzones to canvas
+        # Plot markers for positioning camera mount and manipulator mount
         cv2.line(canvas, deadzone[0], deadzone[1], [0, 255, 0], 3)
         cv2.line(canvas, deadzone[2], deadzone[3], [0, 255, 0], 3)
+        cv2.line(canvas, deadzone[4], deadzone[5], [0, 0, 255], 3)
+        cv2.line(canvas, deadzone[6], deadzone[7], [0, 0, 255], 3)
+        cv2.line(canvas, deadzone[8], deadzone[9], [0, 0, 255], 3)
 
-        # Environment sensing data
+        # Environment sensing dataEnvironment
         self.boardMask = None           # Board mask generated from black pixels
         self.boardMaskTd = None         # Top-down rectified board mask
         self.boardMaskFilled = None     # Board mask generated from detected corners
