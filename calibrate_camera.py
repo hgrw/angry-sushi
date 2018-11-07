@@ -56,11 +56,11 @@ def main():
     targetDimensions = (6, 9)               # Calibration target dimensions in squares
     exposure = 70000                        # Exposure (gain). Should be high to increase depth of field
     numTargets = 8                          # Number of calibration targets to collect
-    blockout = [(1140, 36), (1140, 1000),   # Right border
-                (187, 860), (1140, 1000),   # Bottom border
-                (400, 892), (400, 932),     # Actuator mounting marker 1
-                (600, 920), (600, 960),     # Actuator mounting marker 2
-                (800, 950), (800, 990)]     # Actuator mounting marker 3
+
+    worldCorners = [(38, 210),      # Top Left
+                    (1140, 25),     # Top Right
+                    (1140, 997),    # Bottom Right
+                    (38, 809)]      # Bottom Left
 
     # Used in the mouse-click callback function
     global hueLocs, calibrating
@@ -80,11 +80,8 @@ def main():
     # Generate camera model
     cal.calibrate_camera(cam, targetDimensions)
 
-    # Set origin, passing in checkerboard dimensions and shape of rectified image
-    #cam.set_origin(targetDimensions)
-
     # Show blockout regions for aligning workspace
-    cal.align_tilt(cam, blockout)
+    cal.align_tilt(cam, worldCorners)
 
     # Generate values for the tops of all objects to be incorporated into work space
     cam.calibrationParams['red'], hueLocs = generate_baselines(cam, hueLocs, "SELECT RED TOPS")
@@ -100,7 +97,7 @@ def main():
     #cam.stream(rectify=True)
 
     # Save camera parameters
-    jsonFile = os.path.join(os.path.dirname(__file__), 'cameraData_AEV.json')
+    jsonFile = os.path.join(os.path.dirname(__file__), 'cameraData.json')
     print "CALIBRATION COMPLETE, SAVING CAMERA PARAMETERS to : ", jsonFile
     with open(jsonFile, 'w') as fp:
         json.dump(cam.calibrationParams, fp, cls=NumpyEncoder)

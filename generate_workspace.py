@@ -18,24 +18,27 @@ def main():
 
     # Calibration parameters
     targetDimensions = (6, 9)   # Calibration board dimensions. Required to initialise camera object
-    exposure = 50000            # Exposure (gain). Should be kept high to increase depth of field
-    bThresh = 70                # Black threshold. Used to detect board
+    exposure = 70000            # Exposure (gain). Should be kept high to increase depth of field
+    bThresh = 95                # Black threshold. Used to detect board
     wThresh = 65                # White theshold. Used to detect goal circle
-    hThresh = 10                # Hue theshold. Used to segment coloured blocks
-    sThresh = 10                # Saturation threshold. Used to segment coloured blocks
-    vThresh = 10                # Value threshold. Used to segment coloured blocks
+    hThresh = 11                # Hue theshold. Used to segment coloured blocks
+    sThresh = 11                # Saturation threshold. Used to segment coloured blocks
+    vThresh = 11                # Value threshold. Used to segment coloured blocks
     testStart = (355, 355)
     testEnd = (677, 677)
     pathStep = 0.15             # Pathfinding step size
     pathing = False             # Set to false while workspace generation completes. When true, pathfinding commences
 
-    blockout = [(1140, 36), (1140, 1000),   # Right border
-                (187, 860), (1140, 1000),   # Bottom border
-                (400, 892), (400, 932),     # Actuator mounting marker 1
-                (600, 920), (600, 960),     # Actuator mounting marker 2
-                (800, 950), (800, 990)]     # Actuator mounting marker 3
+    worldCorners = [(38, 210),      # Top Left
+                    (1140, 25),     # Top Right
+                    (1140, 997),    # Bottom Right
+                    (38, 809)]      # Bottom Left
 
-    cameraPosition = (130, 130) # Vector pointing from workspace origin to camera in top-down rectified frame. Used to
+    # Long and short edge of the world (which is larger than the workspace, since it contains the workspace)
+    worldLongEdgeMm = 578
+    worldShortEdgeMm = 334
+
+    cameraPosition = (500, 150) # Vector pointing from workspace origin to camera in top-down rectified frame. Used to
                                 # translate foam object tops along line from top centroid towards camera lense and in
                                 # so doing, find the bottom for each foam object
 
@@ -43,40 +46,36 @@ def main():
     cam = Camera(targetDimensions, exposure)
 
     # Load camera parameters
-    jsonFile = os.path.join(os.path.dirname(__file__), 'cameraData_AEV.json')
+    jsonFile = os.path.join(os.path.dirname(__file__), 'cameraData.json')
     print("LOADING CAMERA PARAMETERS")
     with open(jsonFile, 'r') as fp:
         cam.calibrationParams = json.load(fp)
         cam.set_colour_coefficients()
-        cam.get_rectify_mask(blockout)
 
     #cam.calibrate_lens()
 
     # Enter program loop. Breaks only when valid path found
     while True:
 
-        # Get rectified image from camera
-        img = cam.get_img(rectify=True, blur=True)
+        # Get rectified image from virtual overhead camera
+        img = cam.get_top_down(cam.get_img(rectify=True, blur=True), worldCorners, worldLongEdgeMm, worldShortEdgeMm)
 
         # Instantiate environment object
-        env = Environment(img.copy(), blockout)
+        env = Environment(img, worldCorners)
 
         # Get workspace objects: blocks faces (tops and sides), cards and goal circle
-        env.get_ws_objects(img, cam.get_object_hues(), cam.rectifyMask, bThresh, wThresh, hThresh, sThresh, vThresh)
+        env.get_ws_objects(img, cam.get_object_hues(), bThresh, wThresh, hThresh, sThresh, vThresh)
 
         # Get board corners. If corners aren't found, restart loop
         if not env.get_board_corners():
             continue
 
-        # Use corners to calculate camera extrinsics relative to workspace. Plot origin over image
-        env.get_ws_frame(np.asarray(cam.calibrationParams['mtx'], dtype=np.float32),
-                         np.asarray(cam.calibrationParams['dist'][0], dtype=np.float32))
-
         # Delete objects that are detected outside the workspace perimeter
         env.update_masks()
 
-        # Convert objects to top down view
-        env.get_top_down()
+        # Use corners to calculate camera extrinsics relative to workspace. Plot origin over image
+        env.get_ws_frame(np.asarray(cam.calibrationParams['mtx'], dtype=np.float32),
+                         np.asarray(cam.calibrationParams['dist'][0], dtype=np.float32))
 
         # Convert non-flat objects in workspace to prisms
         env.get_prisms()
@@ -100,8 +99,9 @@ def main():
                 env.canvasTd = plot.plot_path(env.canvas, path)
             cv2.imshow("canvas", env.canvasTd)
         else:
-            #cv2.imshow("canvas", plot.show_mask(plot.show_mask(env.canvas, env.boardMask, 2), env.sides, 1))
-            cv2.imshow("canvas", plot.show_mask(env.canvasTd, workspace, 2))
+            print('ok')
+            #cv2.imshow("canvas", plot.show_mask(plot.show_mask(plot.show_mask(env.canvas, env.boardMask, 2), env.sides, 1), env.tops, 0))
+            cv2.imshow("canvas", plot.show_mask(env.canvas, workspace, 2))
 
         # Plot corners for workspace origin frame
         #for point in env.wsOrigin:

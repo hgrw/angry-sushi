@@ -154,11 +154,26 @@ class Camera(object):
                 return cv2.bilateralFilter(self.img.get_image_data_numpy(), 9, 40, 40)
         else:
             if not blur:
+
                 return calibrate.remove_distortion(self.calibrationParams, self.img.get_image_data_numpy(), crop=False)
             else:
                 return cv2.bilateralFilter(calibrate.remove_distortion(self.calibrationParams,
                                                                        self.img.get_image_data_numpy(), crop=False),
                                            9, 40, 40)
+
+    def get_top_down(self, image, corners, longEdge, shortEdge):
+
+        # Instantiate distortion kernel
+        dst = np.array([
+            [0, 0],
+            [longEdge * 2 - 1, 0],
+            [longEdge * 2 - 1, shortEdge * 2 - 1],
+            [0, shortEdge * 2 - 1]], dtype="float32")
+
+        # compute the perspective transform matrix
+        M = cv2.getPerspectiveTransform(np.array(corners, np.float32), dst)
+
+        return cv2.warpPerspective(image, M, (longEdge * 2, shortEdge * 2))
 
     def get_rectify_mask(self, blockout):
         self.cam.get_image(self.img)
@@ -167,6 +182,12 @@ class Camera(object):
         self.rectifyMask = cv2.dilate(np.asarray((cv2.cvtColor(
             calibrate.remove_distortion(self.calibrationParams, self.img.get_image_data_numpy(), crop=False),
             cv2.COLOR_BGR2GRAY) == 0) * 255, dtype=np.uint8), np.ones((3, 3), np.uint8), iterations=3)
+
+        # Get rid of perimeter 5 pixels
+        self.rectifyMask[0:5, :] = 255
+        self.rectifyMask[:, -5:] = 255
+        self.rectifyMask[-5:, :] = 255
+        self.rectifyMask[:, 0:5] = 255
 
         # Remove blockout regions from image
         self.rectifyMask[:, blockout[0][0]:] = 255  # Remove camera mount

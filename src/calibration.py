@@ -87,17 +87,22 @@ def generate_origin_square(corners):
     return [corners[0], pt1, pt3, pt2]
 
 
-def align_tilt(cam, deadzone):
+def align_tilt(cam, worldCorners):
     print('ALIGN CAMERA TILT LINE WITH BOTTOM OF CAMERA MOUNT')
     while True:
         canvas = cam.get_img(rectify=True)
 
-        # Plot markers for positioning camera mount and manipulator mount
-        cv2.line(canvas, deadzone[0], deadzone[1], [0, 255, 0], 3)
-        cv2.line(canvas, deadzone[2], deadzone[3], [0, 255, 0], 3)
-        cv2.line(canvas, deadzone[4], deadzone[5], [0, 0, 255], 3)
-        cv2.line(canvas, deadzone[6], deadzone[7], [0, 0, 255], 3)
-        cv2.line(canvas, deadzone[8], deadzone[9], [0, 0, 255], 3)
+        # Plot markers of virual space (including region outiside camera's field of view)
+        cv2.line(canvas, worldCorners[0], worldCorners[1], [0, 255, 0], 3)
+        cv2.line(canvas, worldCorners[1], worldCorners[2], [0, 255, 0], 3)
+        cv2.line(canvas, worldCorners[2], worldCorners[3], [0, 255, 0], 3)
+        cv2.line(canvas, worldCorners[3], worldCorners[0], [0, 255, 0], 3)
+
+        # Plot markers for positioning manipulator mount
+        cv2.line(canvas, (400, 872), (400, 912), [0, 0, 255], 3)
+        cv2.line(canvas, (600, 906), (600, 946), [0, 0, 255], 3)
+        cv2.line(canvas, (800, 941), (800, 981), [0, 0, 255], 3)
+
         cv2.imshow('img', canvas)
         k = cv2.waitKey(1)
         if k == 27:    # Esc key to stop
