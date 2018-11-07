@@ -101,6 +101,7 @@ class Environment(object):
         # Path planning and goal data
         self.start = None
         self.goal = None
+        self.workspace = None
 
     def generate_workspace(self):
 
@@ -109,7 +110,7 @@ class Environment(object):
         for prism in self.prisms:
             mask = (mask | prism.top | prism.side) & ~prism.bottom
 
-        return mask & ~self.cards
+        self.workspace = mask & ~self.cards
 
     def get_prisms(self):
 
@@ -130,10 +131,12 @@ class Environment(object):
         self.prisms = prisms
 
     def get_start_and_end_points(self):
-        goal = filter.get_circle(self.goals, 39, 42)
+
+        # Get goals. Only over write if no goal exists
+        goal = filter.get_circle(self.goals, 38, 43)
         if goal is not None:
             self.goal = goal
-        start = filter.get_circle(self.tops, 35, 37)
+        start = filter.get_circle(self.workspace, 33, 37)
         if start is not None:
             self.start = start
 
@@ -297,33 +300,3 @@ class Environment(object):
             return True
         else:
             return False
-
-
-"""
-    def get_top_down(self):
-
-        # Instantiate distortion kernel
-        dst = np.array([
-            [0, 0],
-            [self.worldLongEdgeMm * 2 - 1, 0],
-            [self.worldLongEdgeMm * 2 - 1, self.worldShortEdgeMm * 2 - 1],
-            [0, self.worldShortEdgeMm * 2 - 1]], dtype="float32")
-
-        # compute the perspective transform matrix
-        M = cv2.getPerspectiveTransform(np.array(self.worldCorners, np.float32), dst)
-
-        # Populate environment with topdown views for all objects
-        self.goalsTd = cv2.warpPerspective(self.goals, M, (self.worldLongEdgeMm * 2, self.worldShortEdgeMm * 2))
-        self.canvasTd = cv2.warpPerspective(self.canvas, M, (self.worldLongEdgeMm * 2, self.worldShortEdgeMm * 2))
-        self.boardMaskTd = cv2.warpPerspective(self.boardMask, M, (self.worldLongEdgeMm * 2, self.worldShortEdgeMm * 2))
-
-        # Get board corners in virtual camera frame
-        self.boardCornersTd = cv2.perspectiveTransform(np.array([self.boardCorners], dtype="float32"), M)
-        self.boardCornersTd = [tuple(self.boardCornersTd[0][0]), tuple(self.boardCornersTd[0][1]),
-                               tuple(self.boardCornersTd[0][2]), tuple(self.boardCornersTd[0][3])]
-
-        self.shapes = [[cv2.warpPerspective(top, M, (self.worldLongEdgeMm * 2, self.worldShortEdgeMm * 2)),
-                        cv2.warpPerspective(side, M, (self.worldLongEdgeMm * 2, self.worldShortEdgeMm * 2))
-                        ] for [top, side] in self.shapes]
-
-"""

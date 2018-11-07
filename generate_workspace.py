@@ -84,22 +84,21 @@ def main():
         _ = [prism.bootstrap_base(cameraPosition, env.canvas) for prism in env.prisms]
 
         # Use prism bottoms to update filled workspace
-        workspace = env.generate_workspace()
+        env.generate_workspace()
 
         # Detect start and end points for trajectories
-        #env.get_start_and_end_points()
+        env.get_start_and_end_points()
 
         # Enter path generation mode
         #print('lk')
 
         if (env.start is not None) and (env.goal is not None):
-            path = tree.generate_path(env.boardMask, env.start, env.goal, pathStep)
+            path = tree.generate_path(env.workspace, env.start, env.goal, pathStep)
             if path is not None:
-                env.canvasTd = plot.plot_path(env.canvas, path)
-            cv2.imshow("canvas", env.canvasTd)
+                env.canvas = plot.plot_path(env.canvas, path)
+            cv2.imshow("canvas", env.canvas)
         else:
-            #cv2.imshow("canvas", plot.show_mask(plot.show_mask(plot.show_mask(env.canvas, env.boardMask, 2), env.sides, 1), env.tops, 0))
-            cv2.imshow("canvas", plot.show_mask(env.canvas, workspace, 2))
+            cv2.imshow("canvas", plot.show_mask(env.canvas, env.workspace, 2))
 
         # Plot corners for workspace origin frame
         #for point in env.wsOrigin:

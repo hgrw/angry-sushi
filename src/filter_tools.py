@@ -100,14 +100,13 @@ def get_elements(image, hues, rectifyMask, bThresh, hThresh, sThresh, vThresh):
 
 
 def get_circle(mask, minRad, maxRad):
-    circles = cv2.HoughCircles(mask, cv2.HOUGH_GRADIENT, 1, 20, param1=50, param2=10, minRadius=minRad, maxRadius=maxRad)
+    circles = cv2.HoughCircles(mask, cv2.HOUGH_GRADIENT, 1, 20, param1=50, param2=8, minRadius=minRad, maxRadius=maxRad)
     if circles is not None:
         circles = np.uint16(np.around(circles))
         for i in circles[0, :]:
             if mask[i[1], i[0]] == 255:
-                # Probably this is a valid circle
-                print('Circle found ', i)
                 return i
+
 
 def get_box(edges, image):
     lines = cv2.HoughLines(edges, 1, np.pi / 180, 180)
