@@ -9,8 +9,8 @@ import src.filter_tools as filter
 class Prism(object):
 
     def __init__(self, top, topCent, side, sideCent):
-        self.rows = top.shape[1]
-        self.cols = top.shape[0]
+        self.rows = top.shape[0]
+        self.cols = top.shape[1]
         self.top = top
         self.topCentroid = topCent
         self.side = side
@@ -22,12 +22,11 @@ class Prism(object):
     def generate_affine_transform(self, camPos, primitive):
 
         # Angle to camera from top-down perspective
-        angleToCamera = math.atan2(camPos[1] + self.top.shape[1] - self.topCentroid[1],
-                                   camPos[0] + self.top.shape[0] - self.topCentroid[0])
+        angleToCamera = math.atan2(camPos[1] - self.topCentroid[1], camPos[0] - self.topCentroid[0])
 
         # Translation amount for each step
-        deltaX = primitive * math.sin(angleToCamera)
-        deltaY = primitive * math.cos(angleToCamera)
+        deltaX = primitive * math.cos(angleToCamera)
+        deltaY = primitive * math.sin(angleToCamera)
 
         # Arbitrary points are chosen and then translated by deltaX and deltaY, so as to provide input required to
         # Generate affine transform matrix
@@ -36,7 +35,7 @@ class Prism(object):
 
         return cv2.getAffineTransform(pts1, pts2)
 
-    def bootstrap_base(self, camPos):
+    def bootstrap_base(self, camPos, canvas):
 
         # We are going to shift the top face two pixels at a time (1mm) towards camera centre
         primitive = 2
@@ -55,7 +54,7 @@ class Prism(object):
 
         # Translate the top 100 times and store the number of white pixels after boolean and with sides.
         for _ in range(0, translationSteps):
-            shifted = cv2.warpAffine(shifted, self.translationMatrix, (self.rows, self.cols))
+            shifted = cv2.warpAffine(shifted, self.translationMatrix, (self.cols, self.rows))
             cost.append(np.sum((shifted & self.side) == 255))
 
         # Find optimal translation distance to translate top
@@ -65,7 +64,7 @@ class Prism(object):
         self.translationMatrix = self.generate_affine_transform(camPos, 2 * distance)
 
         # Project top face onto bottom face :)
-        self.bottom = cv2.warpAffine(self.top.copy(), self.translationMatrix, (self.rows, self.cols))
+        self.bottom = cv2.warpAffine(self.top.copy(), self.translationMatrix, (self.cols, self.rows))
 
         #print('INSIDE PRISM: ', self.topCentroid)
         #cv2.imshow('top', self.top ^ self.bottom)
@@ -136,18 +135,18 @@ class Environment(object):
         self.prisms = prisms
 
     def get_start_and_end_points(self):
-        goal = filter.get_circle(self.goalsTd, 39, 42)
+        goal = filter.get_circle(self.goals, 39, 42)
         if goal is not None:
             self.goal = goal
-        start = filter.get_circle(self.topsTd, 35, 37)
+        start = filter.get_circle(self.tops, 35, 37)
         if start is not None:
             self.start = start
 
         # Render start and goal location on
         if self.start is not None:
-            cv2.circle(self.canvasTd, (self.start[0], self.start[1]), self.start[2], (0, 255, 0), 2)
+            cv2.circle(self.canvas, (self.start[0], self.start[1]), self.start[2], (0, 255, 0), 2)
         if self.goal is not None:
-            cv2.circle(self.canvasTd, (self.goal[0], self.goal[1]), self.goal[2], (0, 255, 0), 2)
+            cv2.circle(self.canvas, (self.goal[0], self.goal[1]), self.goal[2], (0, 255, 0), 2)
 
     def get_ws_objects(self, image, hues, bThresh, wThresh, hThresh, sThresh, vThresh):
         image = cv2.bilateralFilter(image, 9, 40, 40)
@@ -207,9 +206,6 @@ class Environment(object):
         self.tops = filter.remove_components(cv2.morphologyEx(self.tops, cv2.MORPH_CLOSE, kernel), minSize=2000) & ~self.cards
         self.sides = filter.remove_components(cv2.morphologyEx(self.sides, cv2.MORPH_CLOSE, kernel), minSize=2500) & ~self.cards
         self.cards = filter.remove_components(cv2.morphologyEx(self.cards, cv2.MORPH_CLOSE, kernel), minSize=2500)
-
-        #cv2.imshow('tops', self.cards)
-        #cv2.waitKey(0)
 
         # Clean up masks by removing intersections
         self.sides = ((self.sides & ~self.tops) & self.boardMaskFilled) & ~self.boardMask & ~self.cards

@@ -38,7 +38,7 @@ def main():
     worldLongEdgeMm = 578
     worldShortEdgeMm = 334
 
-    cameraPosition = (500, 150) # Vector pointing from workspace origin to camera in top-down rectified frame. Used to
+    cameraPosition = (1150, 300) # Vector pointing from workspace origin to camera in top-down rectified frame. Used to
                                 # translate foam object tops along line from top centroid towards camera lense and in
                                 # so doing, find the bottom for each foam object
 
@@ -81,13 +81,10 @@ def main():
         env.get_prisms()
 
         # Invoke the prism base finding method for each prism. Produces junk array (_) as a byproduct. Disregard.
-        _ = [prism.bootstrap_base(cameraPosition) for prism in env.prisms]
+        _ = [prism.bootstrap_base(cameraPosition, env.canvas) for prism in env.prisms]
 
         # Use prism bottoms to update filled workspace
         workspace = env.generate_workspace()
-
-        # Un-extrude tops. We can do this by translating each top along a line pointing back to camera in overhead view
-        # and taking the point along the line that has the most pixels where the top intersect the edge.
 
         # Detect start and end points for trajectories
         #env.get_start_and_end_points()
@@ -99,7 +96,7 @@ def main():
                 env.canvasTd = plot.plot_path(env.canvas, path)
             cv2.imshow("canvas", env.canvasTd)
         else:
-            print('ok')
+            #print('ok')
             #cv2.imshow("canvas", plot.show_mask(plot.show_mask(plot.show_mask(env.canvas, env.boardMask, 2), env.sides, 1), env.tops, 0))
             cv2.imshow("canvas", plot.show_mask(env.canvas, workspace, 2))
 
