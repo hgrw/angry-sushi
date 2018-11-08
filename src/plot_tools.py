@@ -19,11 +19,11 @@ def render_origin_frame(img, corners, rvecs, tvecs, mtx, dist):
     return img
 
 
-def show_mask(img, mask, chan):
+def show_mask(img, mask, chan, opacity=1.0):
     bgr = img.copy()
     bgr[:, :, :] = 0
     bgr[:, :, chan] = mask
-    return cv2.addWeighted(img, 1.0, bgr, 0.4, 0)
+    return cv2.addWeighted(img, 1.0, bgr, opacity * 0.4, 0)
 
 
 def view_set(images, resolution):

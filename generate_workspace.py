@@ -1,8 +1,4 @@
-import src.calibration as calibrate
-import src.filter_tools as filter
 import src.plot_tools as plot
-import src.calibration as cal
-import src.math_tools as utils
 import src.tree as tree
 import cv2
 import numpy as np
@@ -24,10 +20,7 @@ def main():
     hThresh = 11                # Hue theshold. Used to segment coloured blocks
     sThresh = 11                # Saturation threshold. Used to segment coloured blocks
     vThresh = 11                # Value threshold. Used to segment coloured blocks
-    testStart = (355, 355)
-    testEnd = (677, 677)
     pathStep = 0.15             # Pathfinding step size
-    pathing = False             # Set to false while workspace generation completes. When true, pathfinding commences
 
     worldCorners = [(38, 210),      # Top Left
                     (1140, 25),     # Top Right
@@ -89,16 +82,15 @@ def main():
         # Detect start and end points for trajectories
         env.get_start_and_end_points()
 
-        # Enter path generation mode
-        #print('lk')
+        if len(env.startPts) == len(env.goalPts):
+            for traj in range(0, len(env.startPts)):
 
-        if (env.start is not None) and (env.goal is not None):
-            path = tree.generate_path(env.workspace, env.start, env.goal, pathStep)
-            if path is not None:
-                env.canvas = plot.plot_path(env.canvas, path)
-            cv2.imshow("canvas", env.canvas)
-        else:
-            cv2.imshow("canvas", plot.show_mask(env.canvas, env.workspace, 2))
+                path = tree.generate_path(env.workspace, env.startPts[traj], env.goalPts[traj], pathStep)
+                if path is not None:
+                    env.canvas = plot.plot_path(env.canvas, path)
+                    env.paths.append(path)
+
+        cv2.imshow("canvas", plot.show_mask(plot.show_mask(plot.show_mask(env.canvas, env.workspace, 2), env.tops, 1, opacity=0.5), env.sides, 0, opacity=0.5))
 
         # Plot corners for workspace origin frame
         #for point in env.wsOrigin:

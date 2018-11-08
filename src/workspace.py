@@ -66,30 +66,26 @@ class Prism(object):
         # Project top face onto bottom face :)
         self.bottom = cv2.warpAffine(self.top.copy(), self.translationMatrix, (self.cols, self.rows))
 
-        #print('INSIDE PRISM: ', self.topCentroid)
-        #cv2.imshow('top', self.top ^ self.bottom)
-        #cv2.imshow('side', self.side)
-        #cv2.imshow('bottom', self.bottom)
-        #cv2.waitKey(0)
-
 
 class Environment(object):
 
     def __init__(self, canvas, worldCorners):
 
 
-        # Environment sensing dataEnvironment
+        # Environment variables
         self.worldCorners = worldCorners
         self.canvas = canvas            # Canvas of environment used to plot objects
         self.boardMask = None           # Board mask generated from black pixels
         self.boardMaskFilled = None     # Board mask generated from detected corners
+        self.boardCorners = []          # Board corners
+
+        # Data pertaining objects in environment
         self.tops = None                # Combined tops for all foam objects
         self.sides = None               # Combined sides for all foam objects
         self.shapes = []                # List of numpy arrays that contain both top and side information for each obj
-        self.prisms = []                # List of prism objects, one for each foam block
         self.cards = None
         self.goals = None               # Combined goals
-        self.boardCorners = []          # Board corners
+        self.prisms = []                # List of prism objects, one for each foam block
 
         # Camera and frame data
         self.wsOrigin = None            # Origin of workspace frame
@@ -99,8 +95,9 @@ class Environment(object):
         self.dist = None                # Camera distortion coefficients
 
         # Path planning and goal data
-        self.start = None
-        self.goal = None
+        self.startPts = []
+        self.goalPts = []
+        self.paths = []
         self.workspace = None
 
     def generate_workspace(self):
@@ -113,7 +110,7 @@ class Environment(object):
         self.workspace = mask & ~self.cards
 
     def get_prisms(self):
-
+        # Store prisms in dummy array before returning them
         prisms = []
 
         # Generate top-side pairs for each top.
@@ -132,19 +129,29 @@ class Environment(object):
 
     def get_start_and_end_points(self):
 
-        # Get goals. Only over write if no goal exists
-        goal = filter.get_circle(self.goals, 38, 43)
-        if goal is not None:
-            self.goal = goal
-        start = filter.get_circle(self.workspace, 33, 37)
-        if start is not None:
-            self.start = start
+        # Count number of goals
+        num, output, stats, centroids = cv2.connectedComponentsWithStats(self.goals, connectivity=8)
 
-        # Render start and goal location on
-        if self.start is not None:
-            cv2.circle(self.canvas, (self.start[0], self.start[1]), self.start[2], (0, 255, 0), 2)
-        if self.goal is not None:
-            cv2.circle(self.canvas, (self.goal[0], self.goal[1]), self.goal[2], (0, 255, 0), 2)
+        for component in range(1, num):
+
+            # Get goal and appropriate start location
+            goalPt = (int(centroids[component][0]), int(centroids[component][1]))
+            self.goalPts.append(goalPt)
+            cv2.circle(self.canvas, goalPt, 40, (0, 255, 0), 2)
+
+            # Find corresponding start location
+            startCandidate = filter.get_circle(~self.workspace, 33, 37)
+
+            if startCandidate is not None:
+
+                # Add circle to image
+                self.startPts.append((startCandidate[0], startCandidate[1]))
+
+                # Plot circle on image
+                cv2.circle(self.canvas, (startCandidate[0], startCandidate[1]), startCandidate[2], (0, 255, 0), 2)
+
+                # Once start location is found on workspace, floodfill location so path planner can access it
+                cv2.floodFill(self.workspace, None, self.startPts[-1], 255)
 
     def get_ws_objects(self, image, hues, bThresh, wThresh, hThresh, sThresh, vThresh):
         image = cv2.bilateralFilter(image, 9, 40, 40)
@@ -220,6 +227,7 @@ class Environment(object):
         # Clean up masks by removing intersections
         self.sides = ((self.sides & ~self.tops) & self.boardMaskFilled) & ~self.boardMask & ~self.cards
         self.tops = (self.tops & ~self.sides) & self.boardMaskFilled & ~self.cards
+        self.goals = filter.remove_components(self.goals & self.boardMaskFilled, minSize=2000)
         self.shapes = [[filter.remove_components(cv2.morphologyEx(top & self.tops,
                                                                   cv2.MORPH_CLOSE, kernel), minSize=2000),
                         filter.remove_components(cv2.morphologyEx(side & self.sides, cv2.MORPH_CLOSE, kernel),
