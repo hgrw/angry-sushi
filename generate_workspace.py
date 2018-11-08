@@ -5,6 +5,7 @@ import numpy as np
 import argparse
 import json
 import os
+import scipy.io as sio
 
 from src.camera import Camera
 from src.workspace import Environment
@@ -20,7 +21,8 @@ def main():
     hThresh = 11                # Hue theshold. Used to segment coloured blocks
     sThresh = 11                # Saturation threshold. Used to segment coloured blocks
     vThresh = 11                # Value threshold. Used to segment coloured blocks
-    pathStep = 0.15             # Pathfinding step size
+    pathStep = 0.1             # Pathfinding step size
+    pathing = False
 
     worldCorners = [(38, 210),      # Top Left
                     (1140, 25),     # Top Right
@@ -82,49 +84,48 @@ def main():
         # Detect start and end points for trajectories
         env.get_start_and_end_points()
 
-        if len(env.startPts) == len(env.goalPts):
-            for traj in range(0, len(env.startPts)):
 
-                path = tree.generate_path(env.workspace, env.startPts[traj], env.goalPts[traj], pathStep)
-                if path is not None:
-                    env.canvas = plot.plot_path(env.canvas, path)
-                    env.paths.append(path)
+        if pathing:
 
+            # Repeatedly look for paths for start-end points
+            while len(env.paths) < len(env.startPts):
+
+                # Reset path list so that we don't end up finding duplicate paths
+                env.paths = []
+
+                # Find path for each start-goal pair
+                for traj in range(0, len(env.startPts)):
+
+                    # Prepare start/end points (reverse indices), and dilate obstacles in workspace
+                    startReversed = (env.startPts[traj][1], env.startPts[traj][0])
+                    endReversed = (env.goalPts[traj][1], env.goalPts[traj][0])
+
+                    # Find path
+                    path = tree.generate_path(env.dilatedWorkspace, startReversed, endReversed, pathStep)
+                    if path is not None:
+                        env.canvas = plot.plot_path(env.canvas, path)
+                        env.paths.append(path)
+                        cv2.imshow("canvas", plot.show_mask(plot.show_mask(plot.show_mask(
+                            env.canvas, env.workspace, 2), env.tops, 1, opacity=0.5), env.sides, 0, opacity=0.5))
+
+            # End condition met
+            break
+
+        # Show user input to pathfinding algrorithm
         cv2.imshow("canvas", plot.show_mask(plot.show_mask(plot.show_mask(env.canvas, env.workspace, 2), env.tops, 1, opacity=0.5), env.sides, 0, opacity=0.5))
 
-        # Plot corners for workspace origin frame
-        #for point in env.wsOrigin:
-        #    cv2.circle(img, (int(point[0]), int(point[1])), 4, [255, 0, 0], 3)
-
-        #cv2.circle(img, testStart, 10, [255, 0, 0])
-        #cv2.circle(img, testEnd, 10, [255, 0, 0])
-
-        # Fill gaps in board
-        #env.fill_board()
-
-        # Get board corners
-        #env.get_board_corners(np.float32(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)))
-        #filter.get_box(filter.get_edges(env.boardFilled), img)
-
-
-        # Create a
-        #env.shapeMask = filter.get_shapes(img, env.worldMask ^ env.boardMask)
-        #board = shapes ^ ~env.boardMask
-
-        #edges = filter.infill_components(workSpace)
-
-        #img = filter.get_edges(img, saturationThreshold)
-        #img = filter.get_clahe(img)
-        #saturationMask = filter.color_mask(img, saturationThreshold)
-
-        #img = filter.remove_components()
-        #cv2.imshow("Contours", plot.view_pair(env.boardMask, env.shapeMask))
-        #cv2.imshow("bw", ~cv2.cvtColor(cam.get_img(rectify=True), cv2.COLOR_BGR2GRAY) & ~cam.rectifyMask)
-
         # Remove shapes and top-side pairs array
-        cv2.waitKey(1)
         env.shapes = []
         env.topSidePairs = []
+        k = cv2.waitKey(1)
+        if k == 115:  # Esc key to stop
+            print("PATHING MODE ENGAGED")
+            pathing = True
+
+    # Save data to file and exit
+    print('PATHING DONE. SAVING FILE')
+    sio.savemat('angryPath.mat', {'paths': env.paths})
+    cv2.waitKey(10000)
     exit(0)
 
     # Generate top-down view of image set

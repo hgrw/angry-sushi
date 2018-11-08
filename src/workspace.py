@@ -99,6 +99,7 @@ class Environment(object):
         self.goalPts = []
         self.paths = []
         self.workspace = None
+        self.dilatedWorkspace = None
 
     def generate_workspace(self):
 
@@ -132,6 +133,9 @@ class Environment(object):
         # Count number of goals
         num, output, stats, centroids = cv2.connectedComponentsWithStats(self.goals, connectivity=8)
 
+        # Kernel for dilating workspace once start points have been removed
+        kernel = np.ones((5, 5), dtype=np.uint8)
+
         for component in range(1, num):
 
             # Get goal and appropriate start location
@@ -152,6 +156,9 @@ class Environment(object):
 
                 # Once start location is found on workspace, floodfill location so path planner can access it
                 cv2.floodFill(self.workspace, None, self.startPts[-1], 255)
+
+        self.dilatedWorkspace = ~cv2.dilate(~cv2.morphologyEx(self.workspace,
+                                                              cv2.MORPH_CLOSE, kernel), kernel, iterations=10)
 
     def get_ws_objects(self, image, hues, bThresh, wThresh, hThresh, sThresh, vThresh):
         image = cv2.bilateralFilter(image, 9, 40, 40)
