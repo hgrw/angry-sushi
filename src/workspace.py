@@ -100,6 +100,7 @@ class Environment(object):
         self.paths = []
         self.workspace = None
         self.dilatedWorkspace = None
+        self.matFile = {}
 
     def generate_workspace(self):
 
@@ -245,8 +246,11 @@ class Environment(object):
         # Check if workspace is tilted by calculating angle between top line and side line
         topLine = math.atan2(self.boardCorners[1][0] - self.boardCorners[1][1], self.boardCorners[0][0] - self.boardCorners[1][0])
         sideLine = math.atan2(self.boardCorners[1][0] - self.boardCorners[3][1], self.boardCorners[0][0] - self.boardCorners[3][0])
+        self.matFile['tilted'] = False
 
         if (topLine - sideLine) % math.pi < 0.62: # Tilted
+
+            self.matFile['tilted'] = True
 
             # Workspace corners in workspace frame [0, 1]
             objp = np.zeros((4, 3), np.float32)
@@ -262,6 +266,8 @@ class Environment(object):
 
             # Generate rotation and translation vectors for calibration target
             _, rvecs, tvecs, inliers = cv2.solvePnPRansac(objp, numpyCorners, mtx, dist)
+            self.matFile['rvecs'] = rvecs
+            self.matFile['tvecs'] = tvecs
 
             try:
                 self.canvas = plot.render_origin_frame(self.canvas, numpyCorners, rvecs, tvecs, mtx, dist)

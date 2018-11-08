@@ -21,7 +21,7 @@ def main():
     hThresh = 11                # Hue theshold. Used to segment coloured blocks
     sThresh = 11                # Saturation threshold. Used to segment coloured blocks
     vThresh = 11                # Value threshold. Used to segment coloured blocks
-    pathStep = 0.1             # Pathfinding step size
+    pathStep = 0.05             # Pathfinding step size
     pathing = False
 
     worldCorners = [(38, 210),      # Top Left
@@ -124,8 +124,13 @@ def main():
 
     # Save data to file and exit
     print('PATHING DONE. SAVING FILE')
-    sio.savemat('angryPath.mat', {'paths': env.paths})
-    cv2.waitKey(10000)
+    env.matFile['dimensions'] = env.canvas.shape
+    env.matFile['boardCorners'] = env.boardCorners
+    sio.savemat('/home/mars/git/angry-sushi/angryPath.mat', env.matFile)
+
+    # TODO: call matlab script with submodule
+
+    cv2.waitKey(0)
     exit(0)
 
     # Generate top-down view of image set
