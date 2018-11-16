@@ -52,9 +52,6 @@ def main():
         # Get workspace objects: blocks faces (tops and sides), cards and goal circle
         env.get_ws_objects(img, cam.get_object_hues(), bThresh, wThresh, hThresh, sThresh, vThresh)
 
-        #cv2.imshow('img', img)
-        #cv2.waitKey(1)
-
         # Get board corners. If corners aren't found, restart loop
         if not env.get_board_corners():
             continue
