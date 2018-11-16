@@ -83,7 +83,7 @@ def main():
 
         # Check if pathfinding command (s) entered
         k = cv2.waitKey(1)
-        
+
         if k == 115:  # Esc key to stop
 
             # Commence pathfinding. Restart loop if not valid
