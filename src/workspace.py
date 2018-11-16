@@ -1,10 +1,11 @@
-import numpy as np
-import math
 import src.math_tools as utils
 import src.calibration as cal
 import src.plot_tools as plot
-import cv2
+import src.tree as tree
 import src.filter_tools as filter
+import cv2
+import numpy as np
+import math
 
 class Prism(object):
 
@@ -102,6 +103,44 @@ class Environment(object):
         self.dilatedWorkspace = None
         self.matFile = {}
 
+    def show_canvas(self):
+
+        # Render tops and sides on workspace
+        cv2.imshow("canvas", plot.show_mask(plot.show_mask(
+            plot.show_mask(self.canvas, self.workspace, 2), self.tops, 1, opacity=0.5), self.sides, 0, opacity=0.5))
+
+
+    def get_paths(self, pathStep):
+
+        print("PATHING MODE ENGAGED")
+        print(self.startPts, self.goalPts)
+        if len(self.startPts) == len(self.goalPts):
+
+            paths = []
+
+            # Find path for each start-goal pair
+            for traj in range(0, len(self.startPts)):
+
+                # Prepare start/end points by reversing indices
+                startReversed = (self.startPts[traj][1], self.startPts[traj][0])
+                endReversed = (self.goalPts[traj][1], self.goalPts[traj][0])
+
+                # Find path
+                path = tree.generate_path(self.dilatedWorkspace, startReversed, endReversed, pathStep)
+                if path is not None:
+                    self.canvas = plot.plot_path(self.canvas, path)
+                    paths.append(path)
+                    cv2.imshow("canvas", plot.show_mask(plot.show_mask(plot.show_mask(
+                        self.canvas, self.workspace, 2), self.tops, 1, opacity=0.5), self.sides, 0, opacity=0.5))
+
+            if len(paths) == max(len(self.startPts), len(self.goalPts)):
+                self.paths = paths
+                return True
+
+        print("PATHING FAILED. ADJUST WORLD AND TRY AGAIN")
+        return False
+
+
     def generate_workspace(self):
 
         mask = self.boardMaskFilled.copy()
@@ -145,7 +184,7 @@ class Environment(object):
             cv2.circle(self.canvas, goalPt, 40, (0, 255, 0), 2)
 
             # Find corresponding start location
-            startCandidate = filter.get_circle(~self.workspace, 33, 37)
+            startCandidate = filter.get_circle(~self.workspace, 37, 40)
 
             if startCandidate is not None:
 
@@ -200,9 +239,9 @@ class Environment(object):
 
         # Get card fronts (white colour)
         self.cards = self.cards | cv2.dilate(filter.remove_components(
-            cv2.dilate(filter.infill_components(cv2.dilate(
-                self.goals.copy(), kernel, iterations=2)), kernel, iterations=6) | self.goals, minSize=10000), kernel,
-            iterations=3)
+            cv2.dilate(cv2.dilate(
+                self.goals.copy(), kernel, iterations=2), kernel, iterations=1) | self.goals, minSize=10000), kernel,
+            iterations=1)
 
         # Update goals to remove white card faces and small sections of goal
         self.goals = filter.remove_components(self.goals & ~self.cards, minSize=2500)
