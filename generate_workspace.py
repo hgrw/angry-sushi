@@ -97,8 +97,8 @@ def main():
     env.matFile['dimensions'] = env.canvas.shape
     env.matFile['path'] = env.paths
     env.matFile['boardCorners'] = env.boardCorners
-    env.matFile['canvas'] = env.canvas
-    env.matFile['workspace'] = env.workspace
+    #env.matFile['canvas'] = env.canvas
+    #env.matFile['workspace'] = env.workspace
     sio.savemat('/home/mars/git/angry-sushi/angryPath.mat', env.matFile)
     print('PATHING DONE. DATA SAVED TO MAT FILE. PRESS ANY KEY TO EXIT')
 

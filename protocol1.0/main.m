@@ -116,11 +116,11 @@ xOffset = 0.235;
 
 % [py, px] = getPath();
 
-pathY = -[py]/1000 + yOffset;
-pathX = [px]/1000 + xOffset;
+%pathY = -[py]/1000 + yOffset;
+%pathX = [px]/1000 + xOffset;
 
-% pathY = -[281   251   221   190   160   129    99]/1000 + yOffset;
-% pathX = [130   147   164   180   197   214   230]/1000 + xOffset;
+pathY = -[281   251   221   190   160   129    99]/1000 + yOffset;
+pathX = [130   147   164   180   197   214   230]/1000 + xOffset;
 
 % Px = 0.2;
 % Py = 0;
