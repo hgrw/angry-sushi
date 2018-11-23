@@ -38,7 +38,7 @@ M1                      = 3;            % Dynamixel ID: 1
 M2 = 2;
 M3 = 4;
 BAUDRATE                    = 1000000;
-DEVICENAME                  = 'COM5';       % Check which port is being used on your controller
+DEVICENAME                  = '/dev/ttyUSB0';       % Check which port is being used on your controller
                                             % ex) Windows: 'COM1'   Linux: '/dev/ttyUSB0' Mac: '/dev/tty.usbserial-*'
                                    
                                             
@@ -111,16 +111,49 @@ write2ByteTxRx(port_num, PROTOCOL_VERSION, M2, ADDR_TORQUE_LIMIT, M2_TORQUE);
 % P_X = [0.5 0.5 0.48 0.48 0.5 0.5 0.48 0.48 0.47 0.46 0.45 0.44 0.43];
 % P_Y = [-0.04 -0.06 -0.06 -0.04 0.02 0 0.02 0 0 0 0 0 0 0];
 
-yOffset = 0.2;
-xOffset = 0.235;
+%workspaceX = 565
+%workspaceY = 321
+
+yOffset = 0.275;
+xOffset = 0.195;
+
+workspaceX = 321;
+workspaceY = 550;
+
+
+
+
+write2ByteTxRx(port_num, PROTOCOL_VERSION, M1, ADDR_GOAL_POSITION, 512);
+write2ByteTxRx(port_num, PROTOCOL_VERSION, M2, ADDR_GOAL_POSITION, 512);
+
+%PlaceDot2(port_num, PROTOCOL_VERSION);
+
+cmdString = '/home/mars/.conda/envs/sushimi/bin/python /home/mars/git/angry-sushi/generate_workspace.py';
+[status, commandOut] = system(cmdString);
+disp('ran command');
+if status==0
+    fprintf('got %d\n',str2num(commandOut));
+end
+
+load ../angryPath.mat
+
+boardY = (-1*double(boardCorners(:, 1)) / 1156)*workspaceY/1000 + yOffset;
+boardX = (double(boardCorners(:, 2)) / 698)*workspaceX/1000 + xOffset;
+% 
+% for i = 1:length(boardX)
+%     Px = boardX(i);
+%     Py = boardY(i);
+%     MoveTo(Px,Py,port_num, PROTOCOL_VERSION);
+%     PlaceDot(port_num, PROTOCOL_VERSION);
+% end
 
 % [py, px] = getPath();
+ 
+% pathY = -[py]/1000 + yOffset;
+% pathX = [px]/1000 + xOffset;
 
-%pathY = -[py]/1000 + yOffset;
-%pathX = [px]/1000 + xOffset;
-
-pathY = -[281   251   221   190   160   129    99]/1000 + yOffset;
-pathX = [130   147   164   180   197   214   230]/1000 + xOffset;
+% pathY = -[281   251   221   190   160   129    99]/1000 + yOffset;
+% pathX = [130   147   164   180   197   214   230]/1000 + xOffset;
 
 % Px = 0.2;
 % Py = 0;
@@ -131,13 +164,41 @@ pathX = [130   147   164   180   197   214   230]/1000 + xOffset;
 % MoveTo(0.6, 0, port_num, PROTOCOL_VERSION);
 
 %PlaceDot(port_num, PROTOCOL_VERSION);
+% 
+if length(path) == 2
 
-for i = 1:length(pathX)
-    Px = pathX(i);
-    Py = pathY(i);
-    MoveTo(Px,Py,port_num, PROTOCOL_VERSION);
-    PlaceDot(port_num, PROTOCOL_VERSION);
+    for i = 1:length(path)
+        thispath = path;
+        if length(path) == 1
+            pathY = -1*thispath(:, :, 1)*workspaceY/1000 + yOffset;
+            pathX = (1-thispath(:, :, 2))*workspaceX/1000 + xOffset;
+        else
+            thispath = path{i};
+            pathY = -1*thispath(:, 1)*workspaceY/1000 + yOffset;
+            pathX = (1-thispath(:, 2))*workspaceX/1000 + xOffset;
+        end
+        for i = 1:length(pathX)   
+            if mod(i, 5) == 0
+                Px = pathX(i);
+                Py = pathY(i);
+                MoveTo(Px,Py,port_num, PROTOCOL_VERSION);       
+                PlaceDot(port_num, PROTOCOL_VERSION);        
+            end
+        end
+    end
+else
+   pathY = (-1*path(:, :, 1)*workspaceY/1000) + yOffset;
+   pathX = (1 - path(:, :, 2))*workspaceX/1000 + xOffset;
+   for i = 1:length(pathX)   
+        if mod(i, 5) == 0 || i==1
+            Px = pathX(i);
+            Py = pathY(i);
+            MoveTo(Px,Py,port_num, PROTOCOL_VERSION);       
+            PlaceDot(port_num, PROTOCOL_VERSION);        
+        end
+    end
 end
+        
 
 % P_X = [0.2081    0.2094    0.2157    0.2185    0.2281];
 % P_Y = [0.2091    0.2182    0.2192    0.2246    0.2343];

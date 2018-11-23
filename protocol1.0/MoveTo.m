@@ -1,11 +1,14 @@
 function MoveTo(xb, yb, port_num, PROTOCOL_VERSION)
 
-a1 = 0.365; % m % arm 1 lenght
-a2 = 0.205; % m % arm 2 length
+a1 = 0.370; % m % arm 1 lenght
+% a2 = 0.205; % m % arm 2 length
+a2 = 0.17;
+a3 = 0.03;
+ang2 = atan(a3/a2);
 
 M1 = 3;
 M2 = 2;
-
+try
 ADDR_TORQUE_ENABLE       = 24;           % Control table address is different in Dynamixel model
 ADDR_GOAL_POSITION       = 30;
 ADDR_PRESENT_POSITION    = 36;
@@ -28,7 +31,7 @@ t1rad = atan(y/x)-atan((a2*sin(t2rad))/(a1+a2*cos(t2rad)));
 t1rad2 = atan2((-x*a2*sin(t2rad)+y*(a1+a2*cos(t2rad))),(x*(a1+a2*cos(t2rad))+y*a2*sin(t2rad)));
 q1 = radtodeg(t1rad); % servo 1 angle in deg wrt own frame
 q1b = radtodeg(t1rad2); % servo 1 angle in deg wrt own frame (alternative)
-q2 = radtodeg(t2rad); % servo 2 angle in deg wrt own frame
+q2 = radtodeg(t2rad - ang2); % servo 2 angle in deg wrt own frame
 
 deg1 = 150 - q1;       % angle 1 using adjustment
 deg1b = 150-q1b;       % angle 1 using adjustment (alternative)
@@ -41,22 +44,26 @@ Motor2_Move(port_num,PROTOCOL_VERSION, deg2);
 m1Pos = 1023 - deg1*1023/300;
 m2Pos = 1023 - deg2*1023/300;
 
-m1CurrentPos = read2ByteTxRx(port_num, PROTOCOL_VERSION, M1, ADDR_PRESENT_POSITION);
-m2CurrentPos = read2ByteTxRx(port_num, PROTOCOL_VERSION, M2, ADDR_PRESENT_POSITION);
 
-tic;
-n = 0;
-while 1
-    m1CurrentPos = read2ByteTxRx(port_num, PROTOCOL_VERSION, M1, ADDR_PRESENT_POSITION)
-    m2CurrentPos = read2ByteTxRx(port_num, PROTOCOL_VERSION, M2, ADDR_PRESENT_POSITION)
-    
-    if abs(m1CurrentPos-m1Pos)<7 && abs(m2CurrentPos-m2Pos)<7
-        break
+    m1CurrentPos = read2ByteTxRx(port_num, PROTOCOL_VERSION, M1, ADDR_PRESENT_POSITION);
+    m2CurrentPos = read2ByteTxRx(port_num, PROTOCOL_VERSION, M2, ADDR_PRESENT_POSITION);
+
+    tic;
+    n = 0;
+    while 1
+        m1CurrentPos = read2ByteTxRx(port_num, PROTOCOL_VERSION, M1, ADDR_PRESENT_POSITION)
+        m2CurrentPos = read2ByteTxRx(port_num, PROTOCOL_VERSION, M2, ADDR_PRESENT_POSITION)
+
+        if abs(m1CurrentPos-m1Pos)<7 && abs(m2CurrentPos-m2Pos)<7
+            break
+        end
+        n = toc;
+        if n>10
+            break
+        end
     end
-    n = toc;
-    if n>10
-        break
-    end
+    pause(0.2)
+catch
+    disp('Error');
 end
-pause(0.2)
 end
